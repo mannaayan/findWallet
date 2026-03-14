@@ -1,5 +1,5 @@
 # Use official Node.js runtime as base image
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Set working directory in container
 WORKDIR /app
@@ -11,7 +11,7 @@ RUN apk add --no-cache python3 make g++ gcc
 COPY package*.json ./
 
 # Install dependencies and rebuild native modules
-RUN npm install && npm rebuild
+RUN npm ci && npm rebuild
 
 # Copy the rest of the application
 COPY . .

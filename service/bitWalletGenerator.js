@@ -56,9 +56,8 @@ const bip32 = BIP32Factory(ecc);
 
 async function getBitcoinBalance(address) {
   try {
-    return 0
     const response = await axios.get(
-      `https://blockchain.info/q/addressbalance/${address}`
+      `https://blockchain.info/q/addressbalance/${address}`,
     );
     // console.log("response: " + response.data);
 
@@ -69,8 +68,7 @@ async function getBitcoinBalance(address) {
   }
 }
 async function generateBitcoinWalletpath84(mnemonic, newId) {
-
-    const seed = mnemonicToSeedSync(mnemonic);
+  const seed = mnemonicToSeedSync(mnemonic);
   const root = bip32.fromSeed(seed, networks.bitcoin);
   const path = `m/84'/0'/${newId}'/0/0`;
   const child = root.derivePath(path);
@@ -86,14 +84,12 @@ async function generateBitcoinWalletpath84(mnemonic, newId) {
   });
   //console.log("Address: " + address);
 
-   
-
-  const balance = await getBitcoinBalance(address)
+  const balance = await getBitcoinBalance(address);
   return {
     privateKey: child.toWIF(),
     publicKey: child.publicKey.toString("hex"),
     address: address,
-    balance:balance
+    balance: balance,
   };
 }
 
@@ -112,13 +108,13 @@ async function generateBitcoinWalletpath44(mnemonic, newId) {
     network: networks.bitcoin,
   });
   //console.log("Address: " + address);
-  const balance = await getBitcoinBalance(address)
+  const balance = await getBitcoinBalance(address);
 
   return {
     privateKey: child.toWIF(),
     publicKey: child.publicKey.toString("hex"),
     address: address,
-    balance:balance
+    balance: balance,
   };
 }
 
@@ -138,13 +134,13 @@ async function generateBitcoinWalletpath49(mnemonic, newId) {
   });
   //console.log("Address: " + address);
 
-  const balance = await getBitcoinBalance(address)
+  const balance = await getBitcoinBalance(address);
 
   return {
     privateKey: child.toWIF(),
     publicKey: child.publicKey.toString("hex"),
     address: address,
-    balance
+    balance,
   };
 }
 
@@ -169,10 +165,9 @@ async function generateBitcoinWalletpath86(mnemonic, newId) {
     privateKey: child.toWIF(),
     publicKey: child.publicKey.toString("hex"),
     address: address,
-    balance
+    balance,
   };
 }
-
 
 module.exports = {
   generateBitcoinWalletpath44,
