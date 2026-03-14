@@ -87,7 +87,7 @@ async function getRandomWordsFromFile(filename) {
         solBalance > 0 ||
         bitWallet44.balance > 0 ||
         bitWallet49.balance > 0 ||
-        bitWallet84.address > 0 ||
+        bitWallet84.balance > 0 ||
         (bitWallet86 && bitWallet86.balance > 0)
       ) {
         const logMessage = ` peyechi 
