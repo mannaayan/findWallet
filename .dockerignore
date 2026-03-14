@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.env
+.DS_Store
+output.txt
+ouput.txt
+check1.txt
+check2.txt
+check3.txt

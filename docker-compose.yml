@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  findwallet:
+    build: .
+    container_name: findwallet_app
+    restart: always  # This ensures auto-restart on Docker start
+    volumes:
+      - ./output.txt:/app/output.txt  # Persist output file
+      - ./word.txt:/app/word.txt      # Mount word list
+      - ./.env:/app/.env              # Mount environment variables
+    environment:
+      - NODE_ENV=production
+    # If you need to limit resources, uncomment below:
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
