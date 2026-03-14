@@ -73,16 +73,13 @@ async function generateBitcoinWalletpath84(mnemonic, newId) {
   const path = `m/84'/0'/${newId}'/0/0`;
   const child = root.derivePath(path);
 
-  //console.log("Seed: ", seed.toString("hex"), "child:", child, "Path: " + path);
-
-  // Convert Uint8Array to Buffer
   const publicKeyBuffer = Buffer.from(child.publicKey);
 
-  const { address } = payments.p2pkh({
+  // Native SegWit (bech32 - bc1q...)
+  const { address } = payments.p2wpkh({
     pubkey: publicKeyBuffer,
     network: networks.bitcoin,
   });
-  //console.log("Address: " + address);
 
   const balance = await getBitcoinBalance(address);
   return {
@@ -123,16 +120,14 @@ async function generateBitcoinWalletpath49(mnemonic, newId) {
   const root = bip32.fromSeed(seed, networks.bitcoin);
   const path = `m/49'/0'/${newId}'/0/0`;
   const child = root.derivePath(path);
-  //console.log("Seed: ", seed.toString("hex"), "child:", child, "Path: " + path);
 
-  // Convert Uint8Array to Buffer
   const publicKeyBuffer = Buffer.from(child.publicKey);
 
-  const { address } = payments.p2pkh({
-    pubkey: publicKeyBuffer,
+  // Nested SegWit (P2SH-P2WPKH - 3...)
+  const { address } = payments.p2sh({
+    redeem: payments.p2wpkh({ pubkey: publicKeyBuffer, network: networks.bitcoin }),
     network: networks.bitcoin,
   });
-  //console.log("Address: " + address);
 
   const balance = await getBitcoinBalance(address);
 
@@ -149,16 +144,15 @@ async function generateBitcoinWalletpath86(mnemonic, newId) {
   const root = bip32.fromSeed(seed, networks.bitcoin);
   const path = `m/86'/0'/${newId}'/0/0`;
   const child = root.derivePath(path);
-  //console.log("Seed: ", seed.toString("hex"), "child:", child, "Path: " + path);
 
-  // Convert Uint8Array to Buffer
   const publicKeyBuffer = Buffer.from(child.publicKey);
 
-  const { address } = payments.p2pkh({
-    pubkey: publicKeyBuffer,
+  // Taproot (P2TR - bc1p...)
+  const { address } = payments.p2tr({
+    internalPubkey: publicKeyBuffer.slice(1, 33), // x-only pubkey (32 bytes)
     network: networks.bitcoin,
   });
-  //console.log("Address: " + address);
+
   const balance = await getBitcoinBalance(address);
 
   return {

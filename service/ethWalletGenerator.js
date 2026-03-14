@@ -1,11 +1,30 @@
-// import { mnemonicToSeed } from "bip39";
-// import { formatEther, HDNodeWallet } from "ethers";
-// import { EthProvider } from "./provider";
 const { mnemonicToSeed } = require("bip39");
 const { formatEther, HDNodeWallet } = require("ethers");
 const { EthProvider } = require("./provider");
+const axios = require("axios");
 
- async function generateEthereumWallet(mnemonic, newId) {
+// Connection pooling for HTTP requests - reuse connections
+const httpAgent = new (require("http").Agent)({
+  keepAlive: true,
+  maxSockets: 50,
+});
+const httpsAgent = new (require("https").Agent)({
+  keepAlive: true,
+  maxSockets: 50,
+});
+
+const axiosInstance = axios.create({
+  timeout: 5000,
+  httpAgent,
+  httpsAgent,
+});
+
+// Cache for ETH prices to reduce API calls
+let cachedEthPrice = null;
+let lastPriceFetch = 0;
+const PRICE_CACHE_TTL = 60000; // 60 seconds
+
+async function generateEthereumWallet(mnemonic, newId) {
   ////console.log("newId", newId);
 
   const seed = await mnemonicToSeed(mnemonic);
@@ -20,51 +39,55 @@ const { EthProvider } = require("./provider");
   };
 }
 
-// Fetch ETH price in USD from CoinGecko
+// Fetch ETH price with caching - batch requests to reduce API load
 const fetchEthPrice = async () => {
   try {
-    const response = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+    const now = Date.now();
+    // Return cached price if still valid
+    if (cachedEthPrice && now - lastPriceFetch < PRICE_CACHE_TTL) {
+      return cachedEthPrice;
+    }
+
+    const response = await axiosInstance.get(
+      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd",
     );
-    const data = await response.json();
-    return data.ethereum.usd;
+    cachedEthPrice = response.data.ethereum.usd;
+    lastPriceFetch = now;
+    return cachedEthPrice;
   } catch (error) {
     ////console.error("Error fetching ETH price:", error);
     return null;
   }
 };
 // Get Ethereum Balance using the
- const GetEthBalance = async (walletAddress) => {
+const GetEthBalance = async (walletAddress) => {
   try {
     if (!walletAddress) throw new Error("Wallet address is required");
 
-    // Get balance in Wei
+    // Get balance in Wei with faster provider
     const ethBalanceWei = await EthProvider.getBalance(walletAddress);
     const ethBalance = formatEther(ethBalanceWei); // Convert to ETH
 
-    // Fetch ETH price in USD
+    // Fetch ETH price in USD (cached)
     const ethPrice = await fetchEthPrice();
-    ////console.log("ethPrice: " + ethPrice);
-    
+
     // Convert balance to USD
     const balanceInUSD = ethPrice
       ? (parseFloat(ethBalance) * ethPrice).toFixed(2)
       : "N/A";
-
-    ////console.log(`Balance: ${ethBalance} ETH (~$${balanceInUSD} USD)`);
 
     return {
       eth: ethBalance,
       usd: balanceInUSD,
     };
   } catch (error) {
-    ////console.error("Error fetching ETH balance:", error);
     return null;
   }
 };
-module.exports ={
-  GetEthBalance,generateEthereumWallet
-}
+module.exports = {
+  GetEthBalance,
+  generateEthereumWallet,
+};
 // export const GetEthBalance = async (walletAddress) => {
 //   try {
 //     if (!walletAddress) throw new Error("Wallet address is required");

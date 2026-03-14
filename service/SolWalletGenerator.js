@@ -1,20 +1,9 @@
-const { bs58check } = require("bs58check");
-
 const { mnemonicToSeedSync } = require("bip39");
 const { derivePath } = require("ed25519-hd-key");
-const {
-  Keypair,
-  PublicKey,
-  Connection,
-  clusterApiUrl,
-} = require("@solana/web3.js");
+const { Keypair, PublicKey } = require("@solana/web3.js");
 const nacl = require("tweetnacl");
 const { SolProvider } = require("./provider");
 const bs58 = require("bs58").default;
-
-const SOLANA_RPC_URL = clusterApiUrl("mainnet-beta"); // Change to 'devnet' if needed
-const solanaConnection = new Connection(SOLANA_RPC_URL, "confirmed");
-// const SOLRPC= SolProvider;
 
 function generateSolanaWallet(mnemonic, newId) {
   ////console.log("Generating Solana wallet for index:", newId);
@@ -27,10 +16,6 @@ function generateSolanaWallet(mnemonic, newId) {
   const secretKey = new Uint8Array([...keyPair.secretKey]);
 
   const solanaKeypair = Keypair.fromSecretKey(secretKey);
-  ////console.log("A", solanaKeypair.secretKey);
-
-  const privateKeyBase58 = bs58.encode(solanaKeypair.secretKey);
-  ////console.log("Base58 Encoded Private Key:", privateKeyBase58);
 
   return {
     privateKey: bs58.encode(solanaKeypair.secretKey),

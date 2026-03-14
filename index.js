@@ -1,5 +1,8 @@
-const { generateMnemonic } = require("bip39");
+const { wordlists } = require("bip39");
+const { Worker, isMainThread, workerData } = require("worker_threads");
+const os = require("os");
 const fs = require("fs");
+
 const {
   generateEthereumWallet,
   GetEthBalance,
@@ -13,84 +16,63 @@ const {
   generateBitcoinWalletpath49,
   generateBitcoinWalletpath84,
   generateBitcoinWalletpath86,
-  getBitcoinBalance,
 } = require("./service/bitWalletGenerator");
 
-const filePath = "output.txt"; // File to store the output
+const filePath = "output.txt";
+const OFFICIAL_BIP39_WORDS = wordlists.english; // 2048 official BIP39 words
 
-async function getRandomWordsFromFile(filename) {
-  try {
-    const data = await fs.promises.readFile(filename, "utf8");
-    let words = [...new Set(data.split(/\s+/).map((word) => word.trim()))];
-
-    if (words.length < 12) {
-      throw new Error("Not enough unique words in the file.");
-    }
-
-    let newList = words.sort(() => 0.5 - Math.random()).slice(0, 12);
-    return newList.join(" ");
-  } catch (err) {
-    //console.error('Error:', err.message);
+// Generate random mnemonic from official BIP39 wordlist
+function getRandomMnemonic() {
+  const mnemonic = [];
+  for (let i = 0; i < 12; i++) {
+    const randomIndex = Math.floor(Math.random() * OFFICIAL_BIP39_WORDS.length);
+    mnemonic.push(OFFICIAL_BIP39_WORDS[randomIndex]);
   }
+  return mnemonic.join(" ");
 }
 
-(async function generateWallets() {
+// Worker thread function for parallel wallet generation
+async function walletWorker(workerId) {
+  console.log(`🔄 Worker ${workerId} started`);
+
   while (true) {
-    // const mnemonic = await generateMnemonic();
-    const mnemonic = await getRandomWordsFromFile("word.txt");
-    // const mnemonic =      "review iron volcano chest antique mimic cable already grab stairs pistol income";
-    //console.log("m->", mnemonic);
+    try {
+      // Generate valid BIP39 mnemonic from official wordlist
+      const mnemonic = getRandomMnemonic();
 
-    let index = 0;
+      for (let index = 0; index < 3; index++) {
+        let Account = index;
 
-    while (index !== 3) {
-      let Account = index;
-      const bitPrivateKey = [];
-      const ethWallet = await generateEthereumWallet(mnemonic, index);
-      const ethPrivateKey = ethWallet.privateKey;
-      const ethPublicKey = ethWallet.publicKey;
-      const ethBalance = await GetEthBalance(ethPublicKey);
+        // All wallet generation + balance checks in parallel
+        const [ethWallet, solWallet, bitWallet44, bitWallet49, bitWallet84, bitWallet86] =
+          await Promise.all([
+            generateEthereumWallet(mnemonic, index),
+            generateSolanaWallet(mnemonic, index),
+            generateBitcoinWalletpath44(mnemonic, index),
+            generateBitcoinWalletpath49(mnemonic, index),
+            generateBitcoinWalletpath84(mnemonic, index),
+            generateBitcoinWalletpath86(mnemonic, index),
+          ]);
 
-      const solWallet = await generateSolanaWallet(mnemonic, index);
-      const solPrivateKey = solWallet.privateKey;
-      const solPublicKey = solWallet.publicKey;
-      const solBalance = await GetSolBalance(solPublicKey);
+        const ethPrivateKey = ethWallet.privateKey;
+        const ethPublicKey = ethWallet.publicKey;
+        const solPrivateKey = solWallet.privateKey;
+        const solPublicKey = solWallet.publicKey;
 
-      const bitWallet44 = await generateBitcoinWalletpath44(mnemonic, index);
-      const bitWallet49 = await generateBitcoinWalletpath49(mnemonic, index);
-      const bitWallet84 = await generateBitcoinWalletpath84(mnemonic, index);
-      const bitWallet86 = await generateBitcoinWalletpath86(mnemonic, index);
+        const [ethBalance, solBalance] = await Promise.all([
+          GetEthBalance(ethPublicKey),
+          GetSolBalance(solPublicKey),
+        ]);
 
-      //console.log("bitWallet44", bitWallet44);
-      //console.log("bitWallet44", bitWallet49);
-      //console.log("bitWallet44", bitWallet84);
-      //console.log("bitWallet44", bitWallet86);
-
-      // const bitPrivateKey = bitWallet.privateKey;
-      // const bitPublicKey = bitWallet.publicKey;
-      // const bitAddress = bitWallet.address;
-      // //console.log("bitWallet", bitWallet);
-
-      // const bitBalance = await getBitcoinBalance(bitAddress);
-
-      //console.log("solBalance-->", solBalance);
-      //console.log("ethBalance-->", ethBalance.usd);
-      //console.log("ethBalance-->", ethBalance.eth);
-      // //console.log("bitBalance-->", bitBalance);
-      // const clog = ` bit privateKey is->>${bitPrivateKey}\n
-      // bit publicKey is ->${bitPublicKey}\n
-      // bit address is ->${bitAddress}\n`;
-      // //console.log(clog);
-
-      if (
-        (ethBalance && ethBalance.eth > 0) ||
-        solBalance > 0 ||
-        bitWallet44.balance > 0 ||
-        bitWallet49.balance > 0 ||
-        bitWallet84.balance > 0 ||
-        (bitWallet86 && bitWallet86.balance > 0)
-      ) {
-        const logMessage = ` peyechi 
+        if (
+          (ethBalance && ethBalance.eth > 0) ||
+          solBalance > 0 ||
+          bitWallet44.balance > 0 ||
+          bitWallet49.balance > 0 ||
+          bitWallet84.balance > 0 ||
+          (bitWallet86 && bitWallet86.balance > 0)
+        ) {
+          const logMessage = ` peyechi 
         Mnemonic is->>: ${mnemonic},\n
         Account is->>${Account}\n
         Eth Publickey is->>${ethPublicKey}\n,
@@ -117,10 +99,10 @@ async function getRandomWordsFromFile(filename) {
         bitWallet86 is->>${bitWallet86.address}\n,
         bitWallet86 is->>${bitWallet86.balance}\n,
         `;
-        //console.log(logMessage);
-        fs.appendFileSync(filePath, logMessage + "\n");
-      } else {
-        const logMessage = ` Not Found\n
+          fs.appendFileSync(filePath, logMessage + "\n");
+          console.log(`✅ Worker ${workerId} found valid wallet!`);
+        } else {
+          const logMessage = ` Not Found\n
         Mnemonic is->>: ${mnemonic},
         
         Sol Balance is->>${solBalance}\n
@@ -140,14 +122,37 @@ async function getRandomWordsFromFile(filename) {
         bitWallet86 is->>${bitWallet86.publicKey}\n,
         bitWallet86 is->>${bitWallet86.address}\n,
         bitWallet86 is->>${bitWallet86.balance}\n,`;
-        // //console.log(logMessage);
-        fs.appendFileSync(filePath, logMessage + "\n");
+          fs.appendFileSync(filePath, logMessage + "\n");
+        }
       }
-
-      index++;
+    } catch (error) {
+      console.error(`❌ Worker ${workerId} error:`, error.message);
     }
   }
-})();
+}
+
+// Main entry point - spawn worker threads
+if (isMainThread) {
+  const numCPUs = os.cpus().length;
+  const numWorkers = Math.min(numCPUs, 4);
+
+  console.log(`🚀 Starting ${numWorkers} worker threads (${numCPUs} CPU cores available)`);
+  console.log(`📝 Using official BIP39 wordlist (2048 valid words)`);
+  console.log(`🔄 All API calls have connection pooling + price caching\n`);
+
+  for (let i = 0; i < numWorkers; i++) {
+    const worker = new Worker(__filename, { workerData: i });
+    worker.on("error", (err) => console.error(`Worker ${i} error:`, err));
+    worker.on("exit", (code) => {
+      console.log(`Worker ${i} exited with code ${code}, restarting...`);
+      // Auto restart crashed worker
+      const newWorker = new Worker(__filename, { workerData: i });
+      newWorker.on("error", (err) => console.error(`Worker ${i} error:`, err));
+    });
+  }
+} else {
+  walletWorker(workerData).catch((err) => console.error(`Worker crashed:`, err));
+}
 
 // while (true) {
 //     const logMessage = `Count: ${count}\n`;

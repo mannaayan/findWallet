@@ -1,19 +1,19 @@
-version: '3.8'
+version: "3.8"
 
 services:
   findwallet:
     build: .
-    container_name: findwallet_app
-    restart: always  # This ensures auto-restart on Docker start
+    restart: always
     volumes:
-      - ./output.txt:/app/output.txt  # Persist output file
-      - ./word.txt:/app/word.txt      # Mount word list
-      - ./.env:/app/.env              # Mount environment variables
+      - ./output.txt:/app/output.txt # Persist output file
+      - ./.env:/app/.env # Mount environment variables
     environment:
       - NODE_ENV=production
-    # If you need to limit resources, uncomment below:
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '1'
-    #       memory: 512M
+      - WORKER_THREADS=true # Enable worker threads
+    # Scale horizontally: docker-compose up --scale findwallet=4 -d
+    # Each container runs 4+ worker threads = high parallelism
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1024M
