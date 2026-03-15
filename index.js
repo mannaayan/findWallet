@@ -1,4 +1,4 @@
-const { wordlists } = require("bip39");
+const { wordlists, generateMnemonic } = require("bip39");
 const { Worker, isMainThread, workerData } = require("worker_threads");
 const os = require("os");
 const fs = require("fs");
@@ -37,8 +37,8 @@ async function walletWorker(workerId) {
 
   while (true) {
     try {
-      // Generate valid BIP39 mnemonic from official wordlist
-      const mnemonic = getRandomMnemonic();
+      // Generate cryptographically secure valid BIP39 mnemonic
+      const mnemonic = generateMnemonic();
 
       for (let index = 0; index < 3; index++) {
         let Account = index;

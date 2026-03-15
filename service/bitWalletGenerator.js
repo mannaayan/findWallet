@@ -48,10 +48,11 @@
 //
 const { mnemonicToSeedSync } = require("bip39");
 const { BIP32Factory } = require("bip32");
-const { payments, networks } = require("bitcoinjs-lib");
+const { payments, networks, initEccLib } = require("bitcoinjs-lib");
 const ecc = require("tiny-secp256k1");
 const axios = require("axios");
 
+initEccLib(ecc); // Required by bitcoinjs-lib v6 for p2wpkh, p2tr
 const bip32 = BIP32Factory(ecc);
 
 async function getBitcoinBalance(address) {
