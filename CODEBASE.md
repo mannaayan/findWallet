@@ -14,7 +14,6 @@ findWalletwithdocker/
 ├── docker-compose.yml              # Docker container config
 ├── package.json                    # Dependencies
 ├── .env                            # API keys (not committed)
-├── word.txt                        # Word list input (legacy, no longer used)
 └── output.txt                      # Results output (volume mounted)
 ```
 
@@ -28,44 +27,45 @@ findWalletwithdocker/
 
 **What it does:**
 - Generates cryptographically secure BIP39 mnemonics using `generateMnemonic()`
-- Spawns multiple Worker Threads (up to 4, one per CPU core)
+- Spawns **8 Worker Threads** (capped at min of CPU cores or 8)
 - Each worker runs an infinite loop generating and checking wallets
-- Writes results to `output.txt`
+- Writes results to `output.txt` using **non-blocking async writes**
 
 **Key functions:**
+
+#### `appendToFile(message)`
+Non-blocking async file write using `fs.appendFile` — does not block the event loop unlike `appendFileSync`.
 
 #### `walletWorker(workerId)`
 The core loop running inside each thread:
 1. Generates a valid checksummed BIP39 mnemonic via `generateMnemonic()`
 2. For account index 0, 1, 2:
-   - Generates ETH, SOL, BTC wallets **all in parallel** via `Promise.all`
+   - Generates ETH, SOL wallets + all 4 BTC wallets **in parallel** via `Promise.all`
+   - BTC seed is computed **once** for all 4 paths (not 4 times)
    - Checks ETH and SOL balances in parallel
-   - If any balance > 0 → writes full wallet details to `output.txt` with label `peyechi`
-   - If no balance → writes `Not Found` entry to `output.txt`
+   - If any balance > 0 → writes `peyechi` + full details to `output.txt`
+   - If no balance → writes `Not Found` to `output.txt`
 
 **Worker Thread Setup:**
 ```
 Main Thread
    └── new Worker(__filename, { workerData: 0 })  ← Worker 0
    └── new Worker(__filename, { workerData: 1 })  ← Worker 1
-   └── new Worker(__filename, { workerData: 2 })  ← Worker 2
-   └── new Worker(__filename, { workerData: 3 })  ← Worker 3
+   ...
+   └── new Worker(__filename, { workerData: 7 })  ← Worker 7
 ```
 Each worker auto-restarts if it crashes.
 
-**Parallelism:**
+**Full parallel execution per mnemonic:**
 ```js
-// All 6 wallet generations run at the same time
+// Step 1 — all wallet generation in parallel (BTC seed computed once)
 Promise.all([
-  generateEthereumWallet,
-  generateSolanaWallet,
-  generateBitcoinWalletpath44,
-  generateBitcoinWalletpath49,
-  generateBitcoinWalletpath84,
-  generateBitcoinWalletpath86,
+  generateEthereumWallet(mnemonic, index),
+  generateSolanaWallet(mnemonic, index),
+  generateAllBitcoinWallets(mnemonic, index), // all 4 BTC paths + 4 balances inside
 ])
 
-// ETH and SOL balance checks run at the same time
+// Step 2 — ETH and SOL balance checks in parallel
 Promise.all([GetEthBalance, GetSolBalance])
 ```
 
@@ -74,7 +74,7 @@ Promise.all([GetEthBalance, GetSolBalance])
 ### `service/provider.js` — Blockchain RPC Connections
 
 **What it does:**
-Reads API keys from `.env` and creates reusable blockchain provider instances used across all services.
+Reads API keys from `.env` and creates reusable blockchain provider instances.
 
 ```
 .env file:
@@ -98,7 +98,7 @@ Derives an Ethereum wallet from a mnemonic and checks its balance.
 mnemonic → seed (512-bit) → HD wallet tree → path: m/44'/60'/0'/index/0 → child wallet
 ```
 - Coin type `60` = Ethereum (BIP44 standard)
-- Returns `privateKey` and `address` (public key)
+- Returns `privateKey` and `address`
 
 **Balance Check:**
 ```
@@ -106,14 +106,10 @@ address → Alchemy/Infura RPC → balance in Wei → formatEther() → ETH amou
                                                               → × ETH price → USD amount
 ```
 
-**ETH Price Caching:**
-- Fetches ETH/USD price from CoinGecko API
-- Caches it for 60 seconds to avoid rate limiting
-- If API fails, returns `null` (won't crash)
-
-**HTTP Connection Pooling:**
-- Uses `keepAlive: true` with `maxSockets: 50`
-- Reuses TCP connections instead of opening new ones each request
+**Optimizations:**
+- ETH/USD price **cached for 60 seconds** (CoinGecko API)
+- HTTP **keepAlive connection pooling** with `maxSockets: 50`
+- Returns `null` on error — won't crash
 
 **Exports:** `generateEthereumWallet`, `GetEthBalance`
 
@@ -129,15 +125,14 @@ Derives a Solana wallet from a mnemonic and checks its balance.
 mnemonic → seed (512-bit) → path: m/44'/501'/index'/0' → ed25519 keypair
 ```
 - Coin type `501` = Solana (BIP44 standard)
-- Solana uses **ed25519** elliptic curve (different from ETH/BTC which use secp256k1)
+- Uses **ed25519** elliptic curve (Solana-specific)
 - Private key encoded in Base58
 - Public key encoded in Base58
 
 **Balance Check:**
 ```
-publicKey → SolProvider RPC → balance in lamports → ÷ 1,000,000,000 → SOL amount
+publicKey → SolProvider RPC → balance in lamports → ÷ 1,000,000,000 → SOL
 ```
-- 1 SOL = 1,000,000,000 lamports
 
 **Exports:** `generateSolanaWallet`, `GetSolBalance`
 
@@ -146,92 +141,77 @@ publicKey → SolProvider RPC → balance in lamports → ÷ 1,000,000,000 → S
 ### `service/bitWalletGenerator.js` — Bitcoin (4 Address Types)
 
 **What it does:**
-Derives 4 different Bitcoin wallet address types from the same mnemonic and checks each for balance.
+Derives 4 Bitcoin wallet types from one mnemonic using a **single seed computation**, fetches all 4 balances in parallel via **Blockstream API**.
 
-**Requires `initEccLib(ecc)`** — bitcoinjs-lib v6 requires explicit ECC initialization before using `p2wpkh` or `p2tr`.
+**Key optimization — `generateAllBitcoinWallets(mnemonic, newId)`:**
+```
+mnemonic → seed (computed ONCE)
+   → root HD tree
+   ├── path m/44' → Legacy address (1...)     → getBitcoinBalance ─┐
+   ├── path m/49' → Nested SegWit (3...)      → getBitcoinBalance  ├── Promise.all
+   ├── path m/84' → Native SegWit (bc1q...)   → getBitcoinBalance  │
+   └── path m/86' → Taproot (bc1p...)         → getBitcoinBalance ─┘
+```
 
-**HD Wallet Derivation:**
-```
-mnemonic → seed → BIP32 HD tree → derivation path → child key → address
-```
+Previously: seed computed **4 times** (once per function). Now: computed **once**.
 
 **4 Address Types:**
 
-| Function | Path | Address Type | Format | Payment Script |
-|---|---|---|---|---|
-| `generateBitcoinWalletpath44` | `m/44'/0'/index'/0/0` | Legacy | `1...` | `p2pkh` |
-| `generateBitcoinWalletpath49` | `m/49'/0'/index'/0/0` | Nested SegWit | `3...` | `p2sh(p2wpkh)` |
-| `generateBitcoinWalletpath84` | `m/84'/0'/index'/0/0` | Native SegWit | `bc1q...` | `p2wpkh` |
-| `generateBitcoinWalletpath86` | `m/86'/0'/index'/0/0` | Taproot | `bc1p...` | `p2tr` |
+| Path | Type | Format | Script |
+|---|---|---|---|
+| `m/44'/0'/index'/0/0` | Legacy | `1...` | `p2pkh` |
+| `m/49'/0'/index'/0/0` | Nested SegWit | `3...` | `p2sh(p2wpkh)` |
+| `m/84'/0'/index'/0/0` | Native SegWit | `bc1q...` | `p2wpkh` |
+| `m/86'/0'/index'/0/0` | Taproot | `bc1p...` | `p2tr` |
 
-**Why 4 types?**
-Different wallets (Ledger, Trezor, MetaMask, etc.) use different derivation paths. The same seed phrase generates a completely different address on each path.
-
-**Balance Check:**
+**Balance API — Blockstream (upgraded from blockchain.info):**
 ```
-address → blockchain.info API → balance in satoshis → ÷ 100,000,000 → BTC amount
-```
-- 1 BTC = 100,000,000 satoshis
-- Note: blockchain.info rate limits heavily (429) — BTC balance may return 0 when rate limited
+GET https://blockstream.info/api/address/{address}
 
-**Each function returns:**
-```js
+Response:
 {
-  privateKey: string,  // WIF format
-  publicKey: string,   // hex format
-  address: string,     // Bitcoin address
-  balance: number      // BTC amount
+  chain_stats: {
+    funded_txo_sum: 5000000,  ← satoshis received
+    spent_txo_sum: 1000000    ← satoshis spent
+  }
 }
-```
 
-**Exports:** `generateBitcoinWalletpath44`, `generateBitcoinWalletpath49`, `generateBitcoinWalletpath84`, `generateBitcoinWalletpath86`, `getBitcoinBalance`
+balance = (funded_txo_sum - spent_txo_sum) / 1e8  → BTC
+```
+- **No API key required**
+- **No rate limiting** (unlike blockchain.info which returns 429)
+- Works for all 4 address formats
+
+**Exports:** `generateAllBitcoinWallets`, `generateBitcoinWalletpath44`, `generateBitcoinWalletpath49`, `generateBitcoinWalletpath84`, `generateBitcoinWalletpath86`, `getBitcoinBalance`
 
 ---
 
 ### `Dockerfile` — Docker Image
 
-**What it does:**
-Defines how to build the Node.js application into a Docker container.
-
 ```dockerfile
 FROM node:20-alpine          # Node 20 required (@solana/web3.js needs >=20)
-RUN apk add python3 make g++ gcc   # Build tools for tiny-secp256k1 (C++ native module)
-COPY package*.json ./        # Copy dependency list first (layer cache)
-RUN npm ci && npm rebuild    # Install exact versions from lock file, compile native modules
-COPY . .                     # Copy application code
-CMD ["npm", "start"]         # Run node index.js
+RUN apk add python3 make g++ gcc   # Build tools for tiny-secp256k1 (C++ native)
+COPY package*.json ./
+RUN npm ci && npm rebuild    # Fast deterministic install + compile native modules
+COPY . .
+CMD ["npm", "start"]
 ```
-
-**Why `npm ci` instead of `npm install`?**
-- `npm ci` uses `package-lock.json` directly — faster and deterministic
-- `npm install` resolves dependencies from scratch — slower
-
-**Why build tools (python3, make, g++, gcc)?**
-- `tiny-secp256k1` contains C++ code that must be compiled for the target platform
-- Alpine Linux doesn't include compilers by default
 
 ---
 
 ### `docker-compose.yml` — Container Configuration
 
-**What it does:**
-Configures how the Docker container runs in production.
-
 ```yaml
-restart: always          # Auto-restart if container crashes or Docker restarts
+restart: always              # Auto-restart on crash or Docker restart
 volumes:
-  - ./output.txt:/app/output.txt   # Host file ↔ Container file (live sync)
-  - ./.env:/app/.env               # Inject API keys without baking into image
-environment:
-  - NODE_ENV=production
+  - ./output.txt:/app/output.txt   # Live sync to host machine
+  - ./.env:/app/.env               # API keys injected at runtime
 deploy:
   resources:
     limits:
-      cpus: "1.5"        # Max 1.5 CPU cores
-      memory: 1024M      # Max 1GB RAM
+      cpus: "1.5"
+      memory: 1024M
 ```
-
-**Volume mounts** mean changes inside the container to `output.txt` instantly appear on your local machine.
 
 ---
 
@@ -239,75 +219,81 @@ deploy:
 
 | Package | Purpose |
 |---|---|
-| `bip39` | Mnemonic generation (`generateMnemonic`) and BIP39 standard |
-| `bip32` | HD wallet key derivation tree (BIP32) |
-| `ethers` | Ethereum wallet derivation + RPC balance check |
-| `@solana/web3.js` | Solana wallet + RPC balance check |
+| `bip39` | `generateMnemonic()` — cryptographically secure valid mnemonics |
+| `bip32` | HD wallet key derivation tree |
+| `ethers` | Ethereum wallet derivation + RPC |
+| `@solana/web3.js` | Solana wallet + RPC |
 | `bitcoinjs-lib` | Bitcoin address generation (p2pkh, p2wpkh, p2sh, p2tr) |
-| `tiny-secp256k1` | secp256k1 elliptic curve crypto (required by bip32 + bitcoinjs-lib) |
-| `tweetnacl` | ed25519 crypto (required for Solana key derivation) |
-| `ed25519-hd-key` | HD key derivation for ed25519 (Solana path derivation) |
+| `tiny-secp256k1` | secp256k1 elliptic curve crypto |
+| `tweetnacl` | ed25519 crypto for Solana |
+| `ed25519-hd-key` | HD key derivation for Solana |
 | `bs58` | Base58 encoding for Solana keys |
-| `bs58check` | Base58Check encoding |
-| `axios` | HTTP client for blockchain.info + CoinGecko API calls |
-| `dotenv` | Load `.env` file into `process.env` |
+| `axios` | HTTP client for Blockstream + CoinGecko APIs |
+| `dotenv` | Load `.env` into `process.env` |
 
 ---
 
-## Data Flow (End to End)
+## Full Data Flow
 
 ```
-generateMnemonic()  →  "apple bridge crane ..."  (12 words, valid checksum)
+generateMnemonic()  →  "apple bridge crane ..."  (valid BIP39 checksum)
         ↓
 For account index 0, 1, 2:
         ↓
-  ┌─────────────────────────────────────────────────────┐
-  │              Promise.all (parallel)                  │
-  │  generateEthereumWallet()  →  ETH address + privKey │
-  │  generateSolanaWallet()    →  SOL address + privKey │
-  │  generateBitcoinWallet44() →  BTC 1... + privKey    │
-  │  generateBitcoinWallet49() →  BTC 3... + privKey    │
-  │  generateBitcoinWallet84() →  BTC bc1q + privKey    │
-  │  generateBitcoinWallet86() →  BTC bc1p + privKey    │
-  └─────────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────────────────┐
+  │                  Promise.all (parallel)                      │
+  │                                                              │
+  │  generateEthereumWallet()  →  ETH address + privKey         │
+  │                                                              │
+  │  generateSolanaWallet()    →  SOL address + privKey         │
+  │                                                              │
+  │  generateAllBitcoinWallets()                                 │
+  │    → seed computed ONCE                                      │
+  │    → 4 addresses derived                                     │
+  │    → 4 balances fetched in parallel (Blockstream API)        │
+  └─────────────────────────────────────────────────────────────┘
         ↓
-  ┌─────────────────────────────┐
-  │    Promise.all (parallel)    │
-  │  GetEthBalance(ethAddress)  │  → ETH amount + USD
-  │  GetSolBalance(solAddress)  │  → SOL amount
-  └─────────────────────────────┘
-  (BTC balance fetched inside each generateBitcoinWallet function)
+  ┌──────────────────────────────┐
+  │     Promise.all (parallel)   │
+  │  GetEthBalance → ETH + USD   │
+  │  GetSolBalance → SOL         │
+  └──────────────────────────────┘
         ↓
   Any balance > 0?
-     YES → write "peyechi" + full details → output.txt
-     NO  → write "Not Found" + details   → output.txt
+     YES → appendToFile("peyechi" + full details)  ← async, non-blocking
+     NO  → appendToFile("Not Found" + details)     ← async, non-blocking
         ↓
-  Loop forever (while true)
+  Loop forever across 8 worker threads
 ```
 
 ---
 
-## Concepts Used
+## Performance Summary
 
-### BIP39 — Mnemonic Phrases
-A standard for generating human-readable backup phrases (12 or 24 words) from a fixed wordlist of 2048 words. The phrase encodes a 128-bit random number with a checksum baked into the last word. Only 1 in 16 random word combinations is a valid BIP39 mnemonic. `generateMnemonic()` always produces valid ones.
+| Optimization | Before | After |
+|---|---|---|
+| BTC API | blockchain.info (429 errors) | Blockstream (no limits) |
+| BTC seed computation | 4× per mnemonic | 1× per mnemonic |
+| BTC balance fetches | Sequential | Parallel (Promise.all) |
+| File writes | Blocking (appendFileSync) | Non-blocking (appendFile) |
+| Worker threads | 4 | 8 |
 
-### BIP32 — HD Wallets (Hierarchical Deterministic)
-A standard for deriving a tree of key pairs from a single seed. One seed = unlimited wallets.
+---
 
-### BIP44 — Multi-Account HD Wallet Structure
-Defines the derivation path structure:
-```
-m / purpose' / coin_type' / account' / change / address_index
-```
-Coin types: `60` = ETH, `501` = SOL, `0` = BTC
+## Concepts
+
+### BIP39
+Standard for 12/24-word mnemonic phrases. 2048-word English wordlist. Last word contains checksum — only 1 in 16 random combinations is valid. `generateMnemonic()` always produces valid ones.
+
+### BIP32 / BIP44
+HD wallet derivation: one seed → unlimited wallets via path `m/purpose'/coin'/account'/change/index`.
+Coin types: `60`=ETH, `501`=SOL, `0`=BTC.
 
 ### secp256k1 vs ed25519
-- **secp256k1** — elliptic curve used by Bitcoin and Ethereum
-- **ed25519** — elliptic curve used by Solana (faster, different math)
+- **secp256k1** — Bitcoin, Ethereum
+- **ed25519** — Solana (faster verification)
 
-### Wei / Lamports / Satoshis
-Smallest units of each currency:
-- `1 ETH = 1,000,000,000,000,000,000 Wei` (10^18)
-- `1 SOL = 1,000,000,000 lamports` (10^9)
-- `1 BTC = 100,000,000 satoshis` (10^8)
+### Units
+- `1 ETH = 10^18 Wei`
+- `1 SOL = 10^9 lamports`
+- `1 BTC = 10^8 satoshis`

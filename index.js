@@ -11,107 +11,97 @@ const {
   generateSolanaWallet,
   GetSolBalance,
 } = require("./service/SolWalletGenerator");
-const {
-  generateBitcoinWalletpath44,
-  generateBitcoinWalletpath49,
-  generateBitcoinWalletpath84,
-  generateBitcoinWalletpath86,
-} = require("./service/bitWalletGenerator");
+const { generateAllBitcoinWallets } = require("./service/bitWalletGenerator");
 
 const filePath = "output.txt";
 
-// Worker thread function for parallel wallet generation
+// Non-blocking async file write
+function appendToFile(message) {
+  fs.appendFile(filePath, message + "\n", () => {});
+}
+
 async function walletWorker(workerId) {
   console.log(`🔄 Worker ${workerId} started`);
 
   while (true) {
     try {
-      // Generate cryptographically secure valid BIP39 mnemonic
       const mnemonic = generateMnemonic();
 
       for (let index = 0; index < 3; index++) {
-        let Account = index;
+        const Account = index;
 
-        // All wallet generation + balance checks in parallel
-        const [ethWallet, solWallet, bitWallet44, bitWallet49, bitWallet84, bitWallet86] =
-          await Promise.all([
-            generateEthereumWallet(mnemonic, index),
-            generateSolanaWallet(mnemonic, index),
-            generateBitcoinWalletpath44(mnemonic, index),
-            generateBitcoinWalletpath49(mnemonic, index),
-            generateBitcoinWalletpath84(mnemonic, index),
-            generateBitcoinWalletpath86(mnemonic, index),
-          ]);
+        // All wallets + BTC balances generated in parallel, seed computed once
+        const [ethWallet, solWallet, btcWallets] = await Promise.all([
+          generateEthereumWallet(mnemonic, index),
+          generateSolanaWallet(mnemonic, index),
+          generateAllBitcoinWallets(mnemonic, index),
+        ]);
 
-        const ethPrivateKey = ethWallet.privateKey;
-        const ethPublicKey = ethWallet.publicKey;
-        const solPrivateKey = solWallet.privateKey;
-        const solPublicKey = solWallet.publicKey;
+        const { wallet44, wallet49, wallet84, wallet86 } = btcWallets;
 
         const [ethBalance, solBalance] = await Promise.all([
-          GetEthBalance(ethPublicKey),
-          GetSolBalance(solPublicKey),
+          GetEthBalance(ethWallet.publicKey),
+          GetSolBalance(solWallet.publicKey),
         ]);
 
         if (
           (ethBalance && ethBalance.eth > 0) ||
           solBalance > 0 ||
-          bitWallet44.balance > 0 ||
-          bitWallet49.balance > 0 ||
-          bitWallet84.balance > 0 ||
-          (bitWallet86 && bitWallet86.balance > 0)
+          wallet44.balance > 0 ||
+          wallet49.balance > 0 ||
+          wallet84.balance > 0 ||
+          wallet86.balance > 0
         ) {
-          const logMessage = ` peyechi 
+          const logMessage = ` peyechi
         Mnemonic is->>: ${mnemonic},\n
         Account is->>${Account}\n
-        Eth Publickey is->>${ethPublicKey}\n,
-        Eth private key is->>${ethPrivateKey}\n
-        Eth Balance USDis->>${ethBalance.usd}\n
-        Eth Balance eth  is->>${ethBalance.eth}\n
-        Sol Publickey is->>${solPublicKey}\n, 
-        Sol private key is->>${solPrivateKey}\n
+        Eth Publickey is->>${ethWallet.publicKey}\n,
+        Eth private key is->>${ethWallet.privateKey}\n
+        Eth Balance USD is->>${ethBalance.usd}\n
+        Eth Balance eth is->>${ethBalance.eth}\n
+        Sol Publickey is->>${solWallet.publicKey}\n,
+        Sol private key is->>${solWallet.privateKey}\n
         Sol Balance is->>${solBalance}\n
-        bitWallet44 is->>${bitWallet44.privateKey}\n, 
-        bitWallet44 is->>${bitWallet44.publicKey}\n, 
-        bitWallet44 is->>${bitWallet44.address}\n, 
-        bitWallet44 is->>${bitWallet44.balance}\n, 
-        bitWallet49 is->>${bitWallet49.privateKey}\n,
-        bitWallet49 is->>${bitWallet49.publicKey}\n,
-        bitWallet49 is->>${bitWallet49.address}\n,
-        bitWallet49 is->>${bitWallet49.balance}\n,
-        bitWallet84 is->>${bitWallet84.privateKey}\n,
-        bitWallet84 is->>${bitWallet84.publicKey}\n,
-        bitWallet84 is->>${bitWallet84.address}\n,
-        bitWallet84 is->>${bitWallet84.balance}\n,
-        bitWallet86 is->>${bitWallet86.privateKey}\n,
-        bitWallet86 is->>${bitWallet86.publicKey}\n,
-        bitWallet86 is->>${bitWallet86.address}\n,
-        bitWallet86 is->>${bitWallet86.balance}\n,
+        bitWallet44 is->>${wallet44.privateKey}\n,
+        bitWallet44 is->>${wallet44.publicKey}\n,
+        bitWallet44 is->>${wallet44.address}\n,
+        bitWallet44 is->>${wallet44.balance}\n,
+        bitWallet49 is->>${wallet49.privateKey}\n,
+        bitWallet49 is->>${wallet49.publicKey}\n,
+        bitWallet49 is->>${wallet49.address}\n,
+        bitWallet49 is->>${wallet49.balance}\n,
+        bitWallet84 is->>${wallet84.privateKey}\n,
+        bitWallet84 is->>${wallet84.publicKey}\n,
+        bitWallet84 is->>${wallet84.address}\n,
+        bitWallet84 is->>${wallet84.balance}\n,
+        bitWallet86 is->>${wallet86.privateKey}\n,
+        bitWallet86 is->>${wallet86.publicKey}\n,
+        bitWallet86 is->>${wallet86.address}\n,
+        bitWallet86 is->>${wallet86.balance}\n,
         `;
-          fs.appendFileSync(filePath, logMessage + "\n");
+          appendToFile(logMessage);
           console.log(`✅ Worker ${workerId} found valid wallet!`);
         } else {
           const logMessage = ` Not Found\n
         Mnemonic is->>: ${mnemonic},
-        
         Sol Balance is->>${solBalance}\n
-        bitWallet44 is->>${bitWallet44.privateKey}\n, 
-        bitWallet44 is->>${bitWallet44.publicKey}\n, 
-        bitWallet44 is->>${bitWallet44.address}\n, 
-        bitWallet44 is->>${bitWallet44.balance}\n, 
-        bitWallet49 is->>${bitWallet49.privateKey}\n,
-        bitWallet49 is->>${bitWallet49.publicKey}\n,
-        bitWallet49 is->>${bitWallet49.address}\n,
-        bitWallet49 is->>${bitWallet49.balance}\n,
-        bitWallet84 is->>${bitWallet84.privateKey}\n,
-        bitWallet84 is->>${bitWallet84.publicKey}\n,
-        bitWallet84 is->>${bitWallet84.address}\n,
-        bitWallet84 is->>${bitWallet84.balance}\n,
-        bitWallet86 is->>${bitWallet86.privateKey}\n,
-        bitWallet86 is->>${bitWallet86.publicKey}\n,
-        bitWallet86 is->>${bitWallet86.address}\n,
-        bitWallet86 is->>${bitWallet86.balance}\n,`;
-          fs.appendFileSync(filePath, logMessage + "\n");
+        bitWallet44 is->>${wallet44.privateKey}\n,
+        bitWallet44 is->>${wallet44.publicKey}\n,
+        bitWallet44 is->>${wallet44.address}\n,
+        bitWallet44 is->>${wallet44.balance}\n,
+        bitWallet49 is->>${wallet49.privateKey}\n,
+        bitWallet49 is->>${wallet49.publicKey}\n,
+        bitWallet49 is->>${wallet49.address}\n,
+        bitWallet49 is->>${wallet49.balance}\n,
+        bitWallet84 is->>${wallet84.privateKey}\n,
+        bitWallet84 is->>${wallet84.publicKey}\n,
+        bitWallet84 is->>${wallet84.address}\n,
+        bitWallet84 is->>${wallet84.balance}\n,
+        bitWallet86 is->>${wallet86.privateKey}\n,
+        bitWallet86 is->>${wallet86.publicKey}\n,
+        bitWallet86 is->>${wallet86.address}\n,
+        bitWallet86 is->>${wallet86.balance}\n,`;
+          appendToFile(logMessage);
         }
       }
     } catch (error) {
@@ -120,21 +110,20 @@ async function walletWorker(workerId) {
   }
 }
 
-// Main entry point - spawn worker threads
 if (isMainThread) {
   const numCPUs = os.cpus().length;
-  const numWorkers = Math.min(numCPUs, 4);
+  const numWorkers = Math.min(numCPUs, 8); // Increased from 4 to 8
 
   console.log(`🚀 Starting ${numWorkers} worker threads (${numCPUs} CPU cores available)`);
-  console.log(`📝 Using official BIP39 wordlist (2048 valid words)`);
-  console.log(`🔄 All API calls have connection pooling + price caching\n`);
+  console.log(`📝 Using cryptographically secure BIP39 mnemonics`);
+  console.log(`⚡ BTC: Blockstream API | Seed computed once per mnemonic`);
+  console.log(`🔄 Non-blocking async file writes\n`);
 
   for (let i = 0; i < numWorkers; i++) {
     const worker = new Worker(__filename, { workerData: i });
     worker.on("error", (err) => console.error(`Worker ${i} error:`, err));
     worker.on("exit", (code) => {
       console.log(`Worker ${i} exited with code ${code}, restarting...`);
-      // Auto restart crashed worker
       const newWorker = new Worker(__filename, { workerData: i });
       newWorker.on("error", (err) => console.error(`Worker ${i} error:`, err));
     });

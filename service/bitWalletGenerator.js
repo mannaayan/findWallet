@@ -58,113 +58,67 @@ const bip32 = BIP32Factory(ecc);
 async function getBitcoinBalance(address) {
   try {
     const response = await axios.get(
-      `https://blockchain.info/q/addressbalance/${address}`,
+      `https://blockstream.info/api/address/${address}`,
     );
-    // console.log("response: " + response.data);
-
-    return response.data / 1e8; // Convert Satoshi to BTC
+    const { funded_txo_sum, spent_txo_sum } = response.data.chain_stats;
+    return (funded_txo_sum - spent_txo_sum) / 1e8; // Convert satoshis to BTC
   } catch (error) {
-    console.error("Error fetching balance:", error); // Improved error logging
     return 0;
   }
 }
-async function generateBitcoinWalletpath84(mnemonic, newId) {
+
+// Derive all 4 BTC wallets from a single seed computation
+async function generateAllBitcoinWallets(mnemonic, newId) {
+  // Compute seed only once for all 4 paths
   const seed = mnemonicToSeedSync(mnemonic);
   const root = bip32.fromSeed(seed, networks.bitcoin);
-  const path = `m/84'/0'/${newId}'/0/0`;
-  const child = root.derivePath(path);
 
-  const publicKeyBuffer = Buffer.from(child.publicKey);
+  const child44 = root.derivePath(`m/44'/0'/${newId}'/0/0`);
+  const child49 = root.derivePath(`m/49'/0'/${newId}'/0/0`);
+  const child84 = root.derivePath(`m/84'/0'/${newId}'/0/0`);
+  const child86 = root.derivePath(`m/86'/0'/${newId}'/0/0`);
 
-  // Native SegWit (bech32 - bc1q...)
-  const { address } = payments.p2wpkh({
-    pubkey: publicKeyBuffer,
-    network: networks.bitcoin,
-  });
+  const addr44 = payments.p2pkh({ pubkey: Buffer.from(child44.publicKey), network: networks.bitcoin }).address;
+  const addr49 = payments.p2sh({ redeem: payments.p2wpkh({ pubkey: Buffer.from(child49.publicKey), network: networks.bitcoin }), network: networks.bitcoin }).address;
+  const addr84 = payments.p2wpkh({ pubkey: Buffer.from(child84.publicKey), network: networks.bitcoin }).address;
+  const addr86 = payments.p2tr({ internalPubkey: Buffer.from(child86.publicKey).slice(1, 33), network: networks.bitcoin }).address;
 
-  const balance = await getBitcoinBalance(address);
+  // Fetch all 4 balances in parallel
+  const [bal44, bal49, bal84, bal86] = await Promise.all([
+    getBitcoinBalance(addr44),
+    getBitcoinBalance(addr49),
+    getBitcoinBalance(addr84),
+    getBitcoinBalance(addr86),
+  ]);
+
   return {
-    privateKey: child.toWIF(),
-    publicKey: child.publicKey.toString("hex"),
-    address: address,
-    balance: balance,
+    wallet44: { privateKey: child44.toWIF(), publicKey: child44.publicKey.toString("hex"), address: addr44, balance: bal44 },
+    wallet49: { privateKey: child49.toWIF(), publicKey: child49.publicKey.toString("hex"), address: addr49, balance: bal49 },
+    wallet84: { privateKey: child84.toWIF(), publicKey: child84.publicKey.toString("hex"), address: addr84, balance: bal84 },
+    wallet86: { privateKey: child86.toWIF(), publicKey: child86.publicKey.toString("hex"), address: addr86, balance: bal86 },
   };
 }
 
+// Keep individual exports for compatibility
 async function generateBitcoinWalletpath44(mnemonic, newId) {
-  const seed = mnemonicToSeedSync(mnemonic);
-  const root = bip32.fromSeed(seed, networks.bitcoin);
-  const path = `m/44'/0'/${newId}'/0/0`;
-  const child = root.derivePath(path);
-  //console.log("Seed: ", seed.toString("hex"), "child:", child, "Path: " + path);
-
-  // Convert Uint8Array to Buffer
-  const publicKeyBuffer = Buffer.from(child.publicKey);
-
-  const { address } = payments.p2pkh({
-    pubkey: publicKeyBuffer,
-    network: networks.bitcoin,
-  });
-  //console.log("Address: " + address);
-  const balance = await getBitcoinBalance(address);
-
-  return {
-    privateKey: child.toWIF(),
-    publicKey: child.publicKey.toString("hex"),
-    address: address,
-    balance: balance,
-  };
+  const wallets = await generateAllBitcoinWallets(mnemonic, newId);
+  return wallets.wallet44;
 }
-
 async function generateBitcoinWalletpath49(mnemonic, newId) {
-  const seed = mnemonicToSeedSync(mnemonic);
-  const root = bip32.fromSeed(seed, networks.bitcoin);
-  const path = `m/49'/0'/${newId}'/0/0`;
-  const child = root.derivePath(path);
-
-  const publicKeyBuffer = Buffer.from(child.publicKey);
-
-  // Nested SegWit (P2SH-P2WPKH - 3...)
-  const { address } = payments.p2sh({
-    redeem: payments.p2wpkh({ pubkey: publicKeyBuffer, network: networks.bitcoin }),
-    network: networks.bitcoin,
-  });
-
-  const balance = await getBitcoinBalance(address);
-
-  return {
-    privateKey: child.toWIF(),
-    publicKey: child.publicKey.toString("hex"),
-    address: address,
-    balance,
-  };
+  const wallets = await generateAllBitcoinWallets(mnemonic, newId);
+  return wallets.wallet49;
 }
-
+async function generateBitcoinWalletpath84(mnemonic, newId) {
+  const wallets = await generateAllBitcoinWallets(mnemonic, newId);
+  return wallets.wallet84;
+}
 async function generateBitcoinWalletpath86(mnemonic, newId) {
-  const seed = mnemonicToSeedSync(mnemonic);
-  const root = bip32.fromSeed(seed, networks.bitcoin);
-  const path = `m/86'/0'/${newId}'/0/0`;
-  const child = root.derivePath(path);
-
-  const publicKeyBuffer = Buffer.from(child.publicKey);
-
-  // Taproot (P2TR - bc1p...)
-  const { address } = payments.p2tr({
-    internalPubkey: publicKeyBuffer.slice(1, 33), // x-only pubkey (32 bytes)
-    network: networks.bitcoin,
-  });
-
-  const balance = await getBitcoinBalance(address);
-
-  return {
-    privateKey: child.toWIF(),
-    publicKey: child.publicKey.toString("hex"),
-    address: address,
-    balance,
-  };
+  const wallets = await generateAllBitcoinWallets(mnemonic, newId);
+  return wallets.wallet86;
 }
 
 module.exports = {
+  generateAllBitcoinWallets,
   generateBitcoinWalletpath44,
   generateBitcoinWalletpath49,
   generateBitcoinWalletpath84,

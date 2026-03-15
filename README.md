@@ -1,6 +1,6 @@
 # FindWallet
 
-A multi-chain HD wallet scanner that generates valid BIP39 mnemonics and checks balances across Ethereum, Solana, and Bitcoin networks. Runs in Docker with parallel worker threads for maximum throughput.
+A multi-chain HD wallet scanner that generates valid BIP39 mnemonics and checks balances across Ethereum, Solana, and Bitcoin. Runs in Docker with 8 parallel worker threads for maximum throughput.
 
 ---
 
@@ -19,6 +19,7 @@ A multi-chain HD wallet scanner that generates valid BIP39 mnemonics and checks 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 - An **Alchemy** or **Infura** API key (Ethereum RPC)
 - A **QuickNode** or **Helius** API key (Solana RPC)
+- Bitcoin: **No API key needed** (uses Blockstream — free, no rate limits)
 
 ---
 
@@ -26,13 +27,9 @@ A multi-chain HD wallet scanner that generates valid BIP39 mnemonics and checks 
 
 ### 1. Ethereum RPC — Alchemy (Free)
 
-1. Go to [https://www.alchemy.com](https://www.alchemy.com) and create a free account
-2. Click **Create App**
-3. Select:
-   - Chain: **Ethereum**
-   - Network: **Mainnet**
-4. Click your app → **API Key** → copy the **HTTPS** URL
-5. It looks like:
+1. Go to [https://www.alchemy.com](https://www.alchemy.com) → Create free account
+2. Click **Create App** → Chain: **Ethereum** → Network: **Mainnet**
+3. Click your app → **API Key** → copy the **HTTPS** URL:
    ```
    https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY
    ```
@@ -43,18 +40,17 @@ A multi-chain HD wallet scanner that generates valid BIP39 mnemonics and checks 
 
 ### 2. Solana RPC — QuickNode (Free)
 
-1. Go to [https://www.quicknode.com](https://www.quicknode.com) and create a free account
-2. Click **Create Endpoint**
-3. Select:
-   - Chain: **Solana**
-   - Network: **Mainnet**
-4. Copy the **HTTP Provider** URL
-5. It looks like:
+1. Go to [https://www.quicknode.com](https://www.quicknode.com) → Create free account
+2. Click **Create Endpoint** → Chain: **Solana** → Network: **Mainnet**
+3. Copy the **HTTP Provider** URL:
    ```
    https://your-endpoint.solana-mainnet.quiknode.pro/YOUR_TOKEN/
    ```
 
 > Alternative: [Helius](https://helius.dev) → Create account → Copy RPC URL
+
+### 3. Bitcoin — No Setup Needed
+Bitcoin balance checks use **Blockstream API** — completely free, no API key, no rate limits.
 
 ---
 
@@ -67,16 +63,13 @@ VITE_ETH_API_KEY=https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
 VITE_SOL_API_KEY=https://your-endpoint.solana-mainnet.quiknode.pro/YOUR_TOKEN/
 ```
 
-> The `.env` file is never committed to git. Keep your keys private.
+> Never commit `.env` — it's already in `.gitignore`.
 
 ---
 
 ## Create Required Files
 
-Before starting, make sure these files exist in the project root:
-
 ```bash
-# Create empty output file (required for Docker volume mount)
 touch output.txt
 ```
 
@@ -84,126 +77,123 @@ touch output.txt
 
 ## Build and Run with Docker
 
-### Start the container
-
 ```bash
+# Build and start
 docker-compose up --build -d
-```
 
-- `--build` — builds the Docker image
-- `-d` — runs in background (detached mode)
-
-### Check it is running
-
-```bash
+# Check running
 docker ps
-```
 
-### View live output
-
-```bash
+# View live output
 tail -f output.txt
-```
 
-### View container logs
-
-```bash
+# View container logs
 docker-compose logs -f
-```
 
-### Stop the container
-
-```bash
+# Stop
 docker-compose down
-```
 
-### Restart after code changes
-
-```bash
+# Restart after code changes
 docker-compose down && docker-compose up --build -d
 ```
 
 ---
 
-## Run Multiple Containers (Scale Up)
+## Scale Up (Multiple Containers)
 
-Each container runs up to 4 worker threads. Scale horizontally:
+Each container runs 8 worker threads. Run multiple containers:
 
 ```bash
-# Run 4 containers (= up to 16 worker threads total)
+# 4 containers = up to 32 worker threads
 docker-compose up --scale findwallet=4 -d
 ```
-
-> All containers write to the same `output.txt` on your host machine.
 
 ---
 
 ## Output File
 
-Results are written to `output.txt` in the project root.
-
-### Found wallet (balance > 0)
+### Found wallet (`peyechi`)
 ```
 peyechi
-  Mnemonic is->>: word1 word2 word3 ...
+  Mnemonic is->>: word1 word2 ...
   Account ->> 0
-  Eth Publickey ->> 0x...
+  Eth Publickey  ->> 0x...
   Eth private key ->> 0x...
   Eth Balance USD ->> 1234.56
   Eth Balance eth ->> 0.5
   Sol Publickey ->> ABC...
   Sol private key ->> XYZ...
   Sol Balance ->> 2.5
-  bitWallet44 address ->> 1ABC...
-  bitWallet49 address ->> 3DEF...
-  bitWallet84 address ->> bc1q...
-  bitWallet86 address ->> bc1p...
+  bitWallet44 address ->> 1ABC...  (Legacy)
+  bitWallet49 address ->> 3DEF...  (Nested SegWit)
+  bitWallet84 address ->> bc1q...  (Native SegWit)
+  bitWallet86 address ->> bc1p...  (Taproot)
 ```
 
-### Not found (balance = 0)
+### Not found
 ```
 Not Found
-  Mnemonic is->>: word1 word2 word3 ...
-  ...wallet details...
+  Mnemonic is->>: word1 word2 ...
+  ...wallet details with 0 balances...
 ```
 
 ---
 
-## Run Without Docker (Local)
-
-### Requirements
-- Node.js v20 or higher
-
-### Install and start
+## Run Without Docker
 
 ```bash
+# Requires Node.js v20+
 npm install
 npm start
 ```
 
 ---
 
-## Hosting on a VPS / Cloud Server
+## Hosting for 24/7 (PC off)
 
-### Recommended Free Providers
-- [Oracle Cloud](https://cloud.oracle.com) — **Always Free** ARM VM (4 cores, 24GB RAM)
-- [Railway](https://railway.app) — $5 credit/month
-- [Fly.io](https://fly.io) — 3 shared VMs free
+Codespaces and local PC stop when idle/off. For true 24/7 use a cloud VPS:
 
-### Setup on Ubuntu VPS
+### Oracle Cloud — Free Forever
+
+1. Signup at [cloud.oracle.com](https://cloud.oracle.com) (credit card for verification only)
+2. Create **VM Instance** → **Ampere ARM** → Always Free
+3. SSH in and run:
 
 ```bash
 # Install Docker
 curl -fsSL https://get.docker.com | sh
-systemctl start docker && systemctl enable docker
-apt install docker-compose -y
+sudo usermod -aG docker ubuntu
 
 # Clone repo
 git clone https://github.com/mannaayan/findWallet.git
 cd findWallet
 
-# Create .env with your API keys
-nano .env
+# Setup
+touch output.txt
+nano .env   # paste your API keys
+
+# Start
+docker-compose up --build -d
+```
+
+### Other options
+| Provider | Cost |
+|---|---|
+| Hetzner | €3.29/month |
+| DigitalOcean | $4/month |
+| AWS EC2 t2.micro | Free 1 year |
+
+---
+
+## GitHub Codespaces Setup
+
+```bash
+# Remove .env if it was created as directory
+rm -rf .env
+
+# Create .env from Codespace secrets (set secrets in GitHub Settings → Codespaces)
+echo "VITE_ETH_API_KEY=$VITE_ETH_API_KEY" > .env
+echo "VITE_SOL_API_KEY=$VITE_SOL_API_KEY" >> .env
 
 # Create output file
 touch output.txt
@@ -212,37 +202,41 @@ touch output.txt
 docker-compose up --build -d
 ```
 
-### View output remotely
-
-```bash
-ssh root@YOUR_SERVER_IP "tail -f /root/findWallet/output.txt"
-```
-
-### Copy output to local machine
-
-```bash
-scp root@YOUR_SERVER_IP:/root/findWallet/output.txt ./output.txt
-```
+> Set secrets at: **GitHub → Settings → Codespaces → Secrets**
 
 ---
 
 ## How It Works
 
 ```
-generateMnemonic()           ← cryptographically secure, valid BIP39 checksum
+generateMnemonic()              ← cryptographically secure, valid BIP39 checksum
         ↓
 For account index 0, 1, 2:
         ↓
   Promise.all (parallel):
-    ETH wallet → check balance via Alchemy RPC
-    SOL wallet → check balance via QuickNode RPC
-    BTC x4     → check balance via blockchain.info
+    ETH wallet → GetEthBalance (Alchemy RPC)
+    SOL wallet → GetSolBalance (QuickNode RPC)
+    BTC x4     → seed computed ONCE → 4 addresses → 4 balances (Blockstream, parallel)
         ↓
-  balance > 0?  →  write "peyechi" to output.txt
-  balance = 0?  →  write "Not Found" to output.txt
+  balance > 0?  →  write "peyechi" to output.txt  (async)
+  balance = 0?  →  write "Not Found" to output.txt (async)
         ↓
-  repeat forever across 4 worker threads
+  repeat forever across 8 worker threads
 ```
+
+---
+
+## Performance
+
+| Feature | Detail |
+|---|---|
+| Worker threads | 8 (uses all CPU cores up to 8) |
+| BTC API | Blockstream — no rate limits |
+| BTC seed | Computed once per mnemonic (not 4×) |
+| BTC balances | Fetched in parallel |
+| File writes | Non-blocking async |
+| ETH price | Cached 60 seconds |
+| HTTP connections | Pooled with keepAlive |
 
 ---
 
@@ -250,28 +244,28 @@ For account index 0, 1, 2:
 
 ```
 findWalletwithdocker/
-├── index.js                  # Main entry point + worker threads
+├── index.js                  # Main entry + 8 worker threads
 ├── service/
-│   ├── provider.js           # Blockchain RPC connections
-│   ├── ethWalletGenerator.js # Ethereum wallet + balance
-│   ├── SolWalletGenerator.js # Solana wallet + balance
-│   └── bitWalletGenerator.js # Bitcoin wallet + balance (4 types)
-├── Dockerfile                # Docker image definition
-├── docker-compose.yml        # Container configuration
-├── package.json              # Dependencies
-├── .env                      # API keys (never commit this)
-├── output.txt                # Scan results (volume mounted)
-└── CODEBASE.md               # Detailed code documentation
+│   ├── provider.js           # RPC connections
+│   ├── ethWalletGenerator.js # ETH wallet + balance
+│   ├── SolWalletGenerator.js # SOL wallet + balance
+│   └── bitWalletGenerator.js # BTC wallets (4 types) + Blockstream balance
+├── Dockerfile
+├── docker-compose.yml
+├── package.json
+├── .env                      # API keys (never commit)
+├── output.txt                # Results
+└── CODEBASE.md               # Full code documentation
 ```
 
 ---
 
 ## Environment Variables
 
-| Variable | Description | Example |
-|---|---|---|
-| `VITE_ETH_API_KEY` | Ethereum RPC URL (Alchemy/Infura) | `https://eth-mainnet.g.alchemy.com/v2/abc123` |
-| `VITE_SOL_API_KEY` | Solana RPC URL (QuickNode/Helius) | `https://xyz.solana-mainnet.quiknode.pro/token/` |
+| Variable | Description |
+|---|---|
+| `VITE_ETH_API_KEY` | Ethereum RPC URL (Alchemy/Infura) |
+| `VITE_SOL_API_KEY` | Solana RPC URL (QuickNode/Helius) |
 
 ---
 
@@ -280,11 +274,10 @@ findWalletwithdocker/
 | Technology | Purpose |
 |---|---|
 | Node.js 20 | Runtime |
-| Worker Threads | Parallel execution across CPU cores |
-| ethers.js v6 | Ethereum wallet derivation + RPC |
-| @solana/web3.js | Solana wallet + RPC |
-| bitcoinjs-lib v6 | Bitcoin address generation |
-| bip39 | Mnemonic generation (BIP39 standard) |
-| bip32 | HD wallet derivation (BIP32 standard) |
-| Docker | Containerization |
-| Docker Compose | Container orchestration |
+| Worker Threads | 8 parallel workers |
+| ethers.js v6 | Ethereum |
+| @solana/web3.js | Solana |
+| bitcoinjs-lib v6 | Bitcoin (4 address types) |
+| Blockstream API | Bitcoin balance (free, no limits) |
+| bip39 / bip32 | HD wallet standards |
+| Docker + Compose | Containerization |
