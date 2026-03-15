@@ -1,6 +1,6 @@
 # FindWallet
 
-A multi-chain HD wallet scanner that generates wallets from BIP39 mnemonics and checks balances across Ethereum, Solana, and Bitcoin networks. Runs in Docker with parallel worker threads.
+A multi-chain HD wallet scanner that generates valid BIP39 mnemonics and checks balances across Ethereum, Solana, and Bitcoin networks. Runs in Docker with parallel worker threads for maximum throughput.
 
 ---
 
@@ -62,13 +62,6 @@ A multi-chain HD wallet scanner that generates wallets from BIP39 mnemonics and 
 
 Create a `.env` file in the project root:
 
-```bash
-# Create the file
-touch .env
-```
-
-Add your API keys:
-
 ```env
 VITE_ETH_API_KEY=https://eth-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
 VITE_SOL_API_KEY=https://your-endpoint.solana-mainnet.quiknode.pro/YOUR_TOKEN/
@@ -86,8 +79,6 @@ Before starting, make sure these files exist in the project root:
 # Create empty output file (required for Docker volume mount)
 touch output.txt
 ```
-
-`word.txt` should already exist with your word list.
 
 ---
 
@@ -108,12 +99,9 @@ docker-compose up --build -d
 docker ps
 ```
 
-You should see `findwallet_app` with status `Up`.
-
 ### View live output
 
 ```bash
-# Watch output file update in real time
 tail -f output.txt
 ```
 
@@ -132,21 +120,21 @@ docker-compose down
 ### Restart after code changes
 
 ```bash
-docker-compose up --build -d
+docker-compose down && docker-compose up --build -d
 ```
 
 ---
 
 ## Run Multiple Containers (Scale Up)
 
-Each container runs up to 4 worker threads. You can scale horizontally:
+Each container runs up to 4 worker threads. Scale horizontally:
 
 ```bash
 # Run 4 containers (= up to 16 worker threads total)
 docker-compose up --scale findwallet=4 -d
 ```
 
-> Note: All containers write to the same `output.txt` on your host machine.
+> All containers write to the same `output.txt` on your host machine.
 
 ---
 
@@ -185,102 +173,75 @@ Not Found
 
 ### Requirements
 - Node.js v20 or higher
-- npm
 
-### Install dependencies
+### Install and start
 
 ```bash
 npm install
-```
-
-### Start
-
-```bash
 npm start
-```
-
-### Dev mode (auto-restart on file change)
-
-```bash
-npm run dev
 ```
 
 ---
 
 ## Hosting on a VPS / Cloud Server
 
-### Recommended Providers
-- [DigitalOcean](https://www.digitalocean.com) — Droplet ($6/month, 1 vCPU, 1GB RAM minimum)
-- [Vultr](https://www.vultr.com) — Cloud Compute ($5/month)
-- [AWS EC2](https://aws.amazon.com/ec2/) — t3.micro (free tier eligible)
-- [Hetzner](https://www.hetzner.com) — cheapest option (€3.29/month)
+### Recommended Free Providers
+- [Oracle Cloud](https://cloud.oracle.com) — **Always Free** ARM VM (4 cores, 24GB RAM)
+- [Railway](https://railway.app) — $5 credit/month
+- [Fly.io](https://fly.io) — 3 shared VMs free
 
 ### Setup on Ubuntu VPS
 
-**Step 1 — Connect to your server**
 ```bash
-ssh root@YOUR_SERVER_IP
-```
-
-**Step 2 — Install Docker**
-```bash
+# Install Docker
 curl -fsSL https://get.docker.com | sh
-systemctl start docker
-systemctl enable docker
-```
-
-**Step 3 — Install Docker Compose**
-```bash
+systemctl start docker && systemctl enable docker
 apt install docker-compose -y
-```
 
-**Step 4 — Clone or upload your project**
-```bash
-# Option A: Git clone
-git clone YOUR_REPO_URL
-cd findWalletwithdocker
+# Clone repo
+git clone https://github.com/mannaayan/findWallet.git
+cd findWallet
 
-# Option B: SCP upload from your local machine
-scp -r ./findWalletwithdocker root@YOUR_SERVER_IP:/root/
-```
-
-**Step 5 — Create .env file on the server**
-```bash
+# Create .env with your API keys
 nano .env
-```
-Paste your API keys, save with `Ctrl+X` → `Y` → `Enter`
 
-**Step 6 — Create output.txt**
-```bash
+# Create output file
 touch output.txt
-```
 
-**Step 7 — Start**
-```bash
+# Start
 docker-compose up --build -d
 ```
 
-**Step 8 — View output remotely**
+### View output remotely
+
 ```bash
-tail -f output.txt
+ssh root@YOUR_SERVER_IP "tail -f /root/findWallet/output.txt"
 ```
 
-### Keep running after SSH disconnect
-
-The container has `restart: always` in `docker-compose.yml` — it will:
-- Auto-start when the server reboots
-- Auto-restart if the app crashes
-
-### View output from your local machine
+### Copy output to local machine
 
 ```bash
-# SSH and tail in one command
-ssh root@YOUR_SERVER_IP "tail -f /root/findWalletwithdocker/output.txt"
+scp root@YOUR_SERVER_IP:/root/findWallet/output.txt ./output.txt
 ```
 
-Or copy the output file to your local machine:
-```bash
-scp root@YOUR_SERVER_IP:/root/findWalletwithdocker/output.txt ./output.txt
+---
+
+## How It Works
+
+```
+generateMnemonic()           ← cryptographically secure, valid BIP39 checksum
+        ↓
+For account index 0, 1, 2:
+        ↓
+  Promise.all (parallel):
+    ETH wallet → check balance via Alchemy RPC
+    SOL wallet → check balance via QuickNode RPC
+    BTC x4     → check balance via blockchain.info
+        ↓
+  balance > 0?  →  write "peyechi" to output.txt
+  balance = 0?  →  write "Not Found" to output.txt
+        ↓
+  repeat forever across 4 worker threads
 ```
 
 ---
@@ -299,7 +260,6 @@ findWalletwithdocker/
 ├── docker-compose.yml        # Container configuration
 ├── package.json              # Dependencies
 ├── .env                      # API keys (never commit this)
-├── word.txt                  # Word list
 ├── output.txt                # Scan results (volume mounted)
 └── CODEBASE.md               # Detailed code documentation
 ```
@@ -323,7 +283,7 @@ findWalletwithdocker/
 | Worker Threads | Parallel execution across CPU cores |
 | ethers.js v6 | Ethereum wallet derivation + RPC |
 | @solana/web3.js | Solana wallet + RPC |
-| bitcoinjs-lib | Bitcoin address generation |
+| bitcoinjs-lib v6 | Bitcoin address generation |
 | bip39 | Mnemonic generation (BIP39 standard) |
 | bip32 | HD wallet derivation (BIP32 standard) |
 | Docker | Containerization |

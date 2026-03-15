@@ -14,7 +14,7 @@ findWalletwithdocker/
 ├── docker-compose.yml              # Docker container config
 ├── package.json                    # Dependencies
 ├── .env                            # API keys (not committed)
-├── word.txt                        # Word list input
+├── word.txt                        # Word list input (legacy, no longer used)
 └── output.txt                      # Results output (volume mounted)
 ```
 
@@ -27,24 +27,18 @@ findWalletwithdocker/
 ### `index.js` — Main Entry Point
 
 **What it does:**
-- Loads the official BIP39 English wordlist (2048 words)
+- Generates cryptographically secure BIP39 mnemonics using `generateMnemonic()`
 - Spawns multiple Worker Threads (up to 4, one per CPU core)
 - Each worker runs an infinite loop generating and checking wallets
 - Writes results to `output.txt`
 
 **Key functions:**
 
-#### `getRandomMnemonic()`
-Picks 12 random words from the official BIP39 wordlist to form a valid mnemonic phrase.
-```
-Example output: "apple bridge crane dust echo floor gate hill iron jump key lamp"
-```
-
 #### `walletWorker(workerId)`
 The core loop running inside each thread:
-1. Generates a random mnemonic
+1. Generates a valid checksummed BIP39 mnemonic via `generateMnemonic()`
 2. For account index 0, 1, 2:
-   - Generates ETH, SOL, BTC wallets in parallel via `Promise.all`
+   - Generates ETH, SOL, BTC wallets **all in parallel** via `Promise.all`
    - Checks ETH and SOL balances in parallel
    - If any balance > 0 → writes full wallet details to `output.txt` with label `peyechi`
    - If no balance → writes `Not Found` entry to `output.txt`
@@ -62,7 +56,14 @@ Each worker auto-restarts if it crashes.
 **Parallelism:**
 ```js
 // All 6 wallet generations run at the same time
-Promise.all([generateEthereumWallet, generateSolanaWallet, generateBitcoinWallet x4])
+Promise.all([
+  generateEthereumWallet,
+  generateSolanaWallet,
+  generateBitcoinWalletpath44,
+  generateBitcoinWalletpath49,
+  generateBitcoinWalletpath84,
+  generateBitcoinWalletpath86,
+])
 
 // ETH and SOL balance checks run at the same time
 Promise.all([GetEthBalance, GetSolBalance])
@@ -94,7 +95,7 @@ Derives an Ethereum wallet from a mnemonic and checks its balance.
 
 **HD Wallet Derivation:**
 ```
-mnemonic → seed (512-bit) → HD tree → path: m/44'/60'/0'/index/0 → child wallet
+mnemonic → seed (512-bit) → HD wallet tree → path: m/44'/60'/0'/index/0 → child wallet
 ```
 - Coin type `60` = Ethereum (BIP44 standard)
 - Returns `privateKey` and `address` (public key)
@@ -147,6 +148,8 @@ publicKey → SolProvider RPC → balance in lamports → ÷ 1,000,000,000 → S
 **What it does:**
 Derives 4 different Bitcoin wallet address types from the same mnemonic and checks each for balance.
 
+**Requires `initEccLib(ecc)`** — bitcoinjs-lib v6 requires explicit ECC initialization before using `p2wpkh` or `p2tr`.
+
 **HD Wallet Derivation:**
 ```
 mnemonic → seed → BIP32 HD tree → derivation path → child key → address
@@ -169,6 +172,7 @@ Different wallets (Ledger, Trezor, MetaMask, etc.) use different derivation path
 address → blockchain.info API → balance in satoshis → ÷ 100,000,000 → BTC amount
 ```
 - 1 BTC = 100,000,000 satoshis
+- Note: blockchain.info rate limits heavily (429) — BTC balance may return 0 when rate limited
 
 **Each function returns:**
 ```js
@@ -235,12 +239,12 @@ deploy:
 
 | Package | Purpose |
 |---|---|
-| `bip39` | Mnemonic generation and BIP39 wordlist |
+| `bip39` | Mnemonic generation (`generateMnemonic`) and BIP39 standard |
 | `bip32` | HD wallet key derivation tree (BIP32) |
 | `ethers` | Ethereum wallet derivation + RPC balance check |
 | `@solana/web3.js` | Solana wallet + RPC balance check |
 | `bitcoinjs-lib` | Bitcoin address generation (p2pkh, p2wpkh, p2sh, p2tr) |
-| `tiny-secp256k1` | secp256k1 elliptic curve crypto (required by bip32) |
+| `tiny-secp256k1` | secp256k1 elliptic curve crypto (required by bip32 + bitcoinjs-lib) |
 | `tweetnacl` | ed25519 crypto (required for Solana key derivation) |
 | `ed25519-hd-key` | HD key derivation for ed25519 (Solana path derivation) |
 | `bs58` | Base58 encoding for Solana keys |
@@ -253,9 +257,7 @@ deploy:
 ## Data Flow (End to End)
 
 ```
-word.txt / BIP39 wordlist
-        ↓
-getRandomMnemonic()  →  "apple bridge crane ..."  (12 words)
+generateMnemonic()  →  "apple bridge crane ..."  (12 words, valid checksum)
         ↓
 For account index 0, 1, 2:
         ↓
@@ -288,7 +290,7 @@ For account index 0, 1, 2:
 ## Concepts Used
 
 ### BIP39 — Mnemonic Phrases
-A standard for generating human-readable backup phrases (12 or 24 words) from a fixed wordlist of 2048 words. The phrase encodes a 128-bit or 256-bit random number.
+A standard for generating human-readable backup phrases (12 or 24 words) from a fixed wordlist of 2048 words. The phrase encodes a 128-bit random number with a checksum baked into the last word. Only 1 in 16 random word combinations is a valid BIP39 mnemonic. `generateMnemonic()` always produces valid ones.
 
 ### BIP32 — HD Wallets (Hierarchical Deterministic)
 A standard for deriving a tree of key pairs from a single seed. One seed = unlimited wallets.
