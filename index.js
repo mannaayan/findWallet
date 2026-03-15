@@ -82,25 +82,7 @@ async function walletWorker(workerId) {
           appendToFile(logMessage);
           console.log(`✅ Worker ${workerId} found valid wallet!`);
         } else {
-          const logMessage = ` Not Found\n
-        Mnemonic is->>: ${mnemonic},
-        Sol Balance is->>${solBalance}\n
-        bitWallet44 is->>${wallet44.privateKey}\n,
-        bitWallet44 is->>${wallet44.publicKey}\n,
-        bitWallet44 is->>${wallet44.address}\n,
-        bitWallet44 is->>${wallet44.balance}\n,
-        bitWallet49 is->>${wallet49.privateKey}\n,
-        bitWallet49 is->>${wallet49.publicKey}\n,
-        bitWallet49 is->>${wallet49.address}\n,
-        bitWallet49 is->>${wallet49.balance}\n,
-        bitWallet84 is->>${wallet84.privateKey}\n,
-        bitWallet84 is->>${wallet84.publicKey}\n,
-        bitWallet84 is->>${wallet84.address}\n,
-        bitWallet84 is->>${wallet84.balance}\n,
-        bitWallet86 is->>${wallet86.privateKey}\n,
-        bitWallet86 is->>${wallet86.publicKey}\n,
-        bitWallet86 is->>${wallet86.address}\n,
-        bitWallet86 is->>${wallet86.balance}\n,`;
+          const logMessage = ` Not Found\n`;
           appendToFile(logMessage);
         }
       }

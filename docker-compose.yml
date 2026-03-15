@@ -5,6 +5,8 @@ services:
     volumes:
       - ./output.txt:/app/output.txt # Persist output file
       - ./.env:/app/.env # Mount environment variables
+      - ./index.js:/app/index.js # Live code — no rebuild needed
+      - ./service:/app/service   # Live code — no rebuild needed
     environment:
       - NODE_ENV=production
       - WORKER_THREADS=true # Enable worker threads
