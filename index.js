@@ -1,4 +1,4 @@
-const { wordlists, generateMnemonic } = require("bip39");
+const { generateMnemonic } = require("bip39");
 const { Worker, isMainThread, workerData } = require("worker_threads");
 const os = require("os");
 const fs = require("fs");
@@ -19,17 +19,6 @@ const {
 } = require("./service/bitWalletGenerator");
 
 const filePath = "output.txt";
-const OFFICIAL_BIP39_WORDS = wordlists.english; // 2048 official BIP39 words
-
-// Generate random mnemonic from official BIP39 wordlist
-function getRandomMnemonic() {
-  const mnemonic = [];
-  for (let i = 0; i < 12; i++) {
-    const randomIndex = Math.floor(Math.random() * OFFICIAL_BIP39_WORDS.length);
-    mnemonic.push(OFFICIAL_BIP39_WORDS[randomIndex]);
-  }
-  return mnemonic.join(" ");
-}
 
 // Worker thread function for parallel wallet generation
 async function walletWorker(workerId) {
@@ -87,7 +76,7 @@ async function walletWorker(workerId) {
         bitWallet44 is->>${bitWallet44.address}\n, 
         bitWallet44 is->>${bitWallet44.balance}\n, 
         bitWallet49 is->>${bitWallet49.privateKey}\n,
-        bitWallet49 is->>${bitWallet49.privateKey}\n,
+        bitWallet49 is->>${bitWallet49.publicKey}\n,
         bitWallet49 is->>${bitWallet49.address}\n,
         bitWallet49 is->>${bitWallet49.balance}\n,
         bitWallet84 is->>${bitWallet84.privateKey}\n,
@@ -111,7 +100,7 @@ async function walletWorker(workerId) {
         bitWallet44 is->>${bitWallet44.address}\n, 
         bitWallet44 is->>${bitWallet44.balance}\n, 
         bitWallet49 is->>${bitWallet49.privateKey}\n,
-        bitWallet49 is->>${bitWallet49.privateKey}\n,
+        bitWallet49 is->>${bitWallet49.publicKey}\n,
         bitWallet49 is->>${bitWallet49.address}\n,
         bitWallet49 is->>${bitWallet49.balance}\n,
         bitWallet84 is->>${bitWallet84.privateKey}\n,
