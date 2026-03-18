@@ -2,6 +2,8 @@ const { generateMnemonic } = require("bip39");
 const { Worker, isMainThread, workerData } = require("worker_threads");
 const os = require("os");
 const fs = require("fs");
+const https = require("https");
+const nodemailer = require("nodemailer");
 
 const {
   generateEthereumWallet,
@@ -14,10 +16,105 @@ const {
 const { generateAllBitcoinWallets } = require("./service/bitWalletGenerator");
 
 const filePath = "output.txt";
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || "";
+
+// Email transporter (Gmail SMTP)
+const emailTransporter = (process.env.EMAIL_FROM && process.env.EMAIL_APP_PASSWORD)
+  ? nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_FROM,
+        pass: process.env.EMAIL_APP_PASSWORD,
+      },
+    })
+  : null;
+
+async function sendEmail(walletData) {
+  if (!emailTransporter || !process.env.EMAIL_TO) return;
+  try {
+    const { mnemonic, account, ethWallet, ethBalance, solWallet, solBalance, btc } = walletData;
+    const text = `
+💰 WALLET FOUND!
+================
+
+🔑 Mnemonic: ${mnemonic}
+👤 Account Index: ${account}
+
+━━━━━━━━━━━━━━━━━━━━
+ETHEREUM
+━━━━━━━━━━━━━━━━━━━━
+Address:     ${ethWallet.publicKey}
+Private Key: ${ethWallet.privateKey}
+Balance ETH: ${ethBalance?.eth ?? "N/A"}
+Balance USD: $${ethBalance?.usd ?? "N/A"}
+
+━━━━━━━━━━━━━━━━━━━━
+SOLANA
+━━━━━━━━━━━━━━━━━━━━
+Address:     ${solWallet.publicKey}
+Private Key: ${solWallet.privateKey}
+Balance SOL: ${solBalance}
+
+━━━━━━━━━━━━━━━━━━━━
+BITCOIN (BIP44 - Legacy)
+━━━━━━━━━━━━━━━━━━━━
+Address:     ${btc.wallet44.address}
+Private Key: ${btc.wallet44.privateKey}
+Balance BTC: ${btc.wallet44.balance}
+
+━━━━━━━━━━━━━━━━━━━━
+BITCOIN (BIP49 - Nested SegWit)
+━━━━━━━━━━━━━━━━━━━━
+Address:     ${btc.wallet49.address}
+Private Key: ${btc.wallet49.privateKey}
+Balance BTC: ${btc.wallet49.balance}
+
+━━━━━━━━━━━━━━━━━━━━
+BITCOIN (BIP84 - Native SegWit)
+━━━━━━━━━━━━━━━━━━━━
+Address:     ${btc.wallet84.address}
+Private Key: ${btc.wallet84.privateKey}
+Balance BTC: ${btc.wallet84.balance}
+
+━━━━━━━━━━━━━━━━━━━━
+BITCOIN (BIP86 - Taproot)
+━━━━━━━━━━━━━━━━━━━━
+Address:     ${btc.wallet86.address}
+Private Key: ${btc.wallet86.privateKey}
+Balance BTC: ${btc.wallet86.balance}
+`;
+    await emailTransporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: process.env.EMAIL_TO,
+      subject: "💰 Wallet Found! - FindWallet Alert",
+      text,
+    });
+    console.log("📧 Email sent!");
+  } catch (err) {
+    console.error("❌ Email error:", err.message);
+  }
+}
 
 // Non-blocking async file write
 function appendToFile(message) {
   fs.appendFile(filePath, message + "\n", () => {});
+}
+
+// Send Discord notification — works on Render (no file system needed)
+function sendDiscordNotification(message) {
+  if (!DISCORD_WEBHOOK_URL) return;
+  try {
+    const url = new URL(DISCORD_WEBHOOK_URL);
+    const body = JSON.stringify({ content: "```\n" + message.slice(0, 1900) + "\n```" });
+    const req = https.request(
+      { hostname: url.hostname, path: url.pathname + url.search, method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
+      () => {}
+    );
+    req.on("error", () => {});
+    req.write(body);
+    req.end();
+  } catch (_) {}
 }
 
 async function walletWorker(workerId) {
@@ -80,6 +177,8 @@ async function walletWorker(workerId) {
         bitWallet86 is->>${wallet86.balance}\n,
         `;
           appendToFile(logMessage);
+          sendDiscordNotification(logMessage);
+          sendEmail({ mnemonic, account: Account, ethWallet, ethBalance, solWallet, solBalance, btc: { wallet44, wallet49, wallet84, wallet86 } });
           console.log(`✅ Worker ${workerId} found valid wallet!`);
         } else {
           const logMessage = ` Not Found\n`;
