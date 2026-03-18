@@ -192,6 +192,13 @@ async function walletWorker(workerId) {
 }
 
 if (isMainThread) {
+  // Minimal HTTP server to satisfy Render's port requirement
+  const http = require("http");
+  const PORT = process.env.PORT || 3000;
+  http.createServer((req, res) => res.end("running")).listen(PORT, () => {
+    console.log(`🌐 Health server listening on port ${PORT}`);
+  });
+
   const numCPUs = os.cpus().length;
   const numWorkers = Math.min(numCPUs, 8); // Increased from 4 to 8
 
