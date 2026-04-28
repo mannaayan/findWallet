@@ -3,3 +3,9 @@ node_modules
 ouput.txt
 output.txt
 check1.txt
+
+# Server SSH keys (never commit)
+server/*.pem
+server/*.key
+server/*.pub
+server/id_rsa

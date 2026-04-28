@@ -1,0 +1,38 @@
+name: Deploy to Oracle Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/findwallet || git clone ${{ secrets.REPO_URL }} /home/ubuntu/findwallet
+
+            cd /home/ubuntu/findwallet
+            git pull origin main
+
+            # Write .env from GitHub secret
+            cat > .env << 'EOF'
+            ${{ secrets.ENV_FILE }}
+            EOF
+
+            # Ensure output.txt exists
+            touch output.txt
+
+            # Build and restart
+            sudo docker compose down
+            sudo docker compose up -d --build
+
+            echo "Deploy done"
+            sudo docker compose ps
