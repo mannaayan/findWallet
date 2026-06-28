@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/mannaayan/**)",
+      "Bash(echo \"--- exit $? ---\")",
+      "Bash(cp '/home/mannaayan/Documents/Server Details/keys/Find_my_wallet_server_key/ssh-key-2026-04-02.key' /tmp/claude-1000/-home-mannaayan-Documents-own-work-findWallet/272c35e9-657f-4d99-a33c-19cba70947ff/scratchpad/srv.key)",
+      "Bash(chmod 600 /tmp/claude-1000/-home-mannaayan-Documents-own-work-findWallet/272c35e9-657f-4d99-a33c-19cba70947ff/scratchpad/srv.key)",
+      "Bash(ssh -i /tmp/claude-1000/-home-mannaayan-Documents-own-work-findWallet/272c35e9-657f-4d99-a33c-19cba70947ff/scratchpad/srv.key -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes ubuntu@161.118.191.3 'echo \"USER=$\\(whoami\\) HOST=$\\(hostname\\)\"; echo \"--- app dir ---\"; ls -la /home/ubuntu/findwallet/output.txt 2>/dev/null; echo \"--- docker ps ---\"; sudo docker compose -f /home/ubuntu/findwallet/docker-compose.yml ps 2>/dev/null || \\(cd /home/ubuntu/findwallet && sudo docker compose ps\\)')",
+      "Bash(unzip -l '/home/mannaayan/Documents/Server Details/keys/Find_my_wallet_server_key/ocid1.ormjob.oc1.ap-mumbai-1.amaaaaaax73xzmyaz7ijzpi7cfbislahrolp36qmrkcmah2ftivl4cwfy4fa.zip')",
+      "Read(//home/mannaayan/Documents/Server Details/**)",
+      "Bash(unzip -o '/home/mannaayan/Documents/Server Details/keys/Find_my_wallet_server_key/ocid1.ormjob.oc1.ap-mumbai-1.amaaaaaax73xzmyaz7ijzpi7cfbislahrolp36qmrkcmah2ftivl4cwfy4fa.zip' -d /tmp/claude-1000/-home-mannaayan-Documents-own-work-findWallet/272c35e9-657f-4d99-a33c-19cba70947ff/scratchpad/tf)",
+      "Bash(ssh -i /tmp/claude-1000/-home-mannaayan-Documents-own-work-findWallet/272c35e9-657f-4d99-a33c-19cba70947ff/scratchpad/k_ed.key -o StrictHostKeyChecking=no -o ConnectTimeout=15 ubuntu@161.118.175.129 'bash -s')",
+      "Bash(ssh -i /tmp/claude-1000/-home-mannaayan-Documents-own-work-findWallet/272c35e9-657f-4d99-a33c-19cba70947ff/scratchpad/wallet.key -o StrictHostKeyChecking=no -o ConnectTimeout=20 ubuntu@161.118.191.3 'bash -s')"
+    ]
+  }
+}

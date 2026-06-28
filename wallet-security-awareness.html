@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crypto Wallet Security — How Wallets Really Get Stolen (Awareness Guide)</title>
+<style>
+  :root{
+    --bg:#0b0f17; --card:#141a25; --card2:#1b2433; --line:#26303f;
+    --txt:#e7edf5; --mut:#9aa7b8; --acc:#5b8cff; --good:#36d399; --bad:#ff5d6c;
+    --warn:#ffb454; --mono:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+  a{color:var(--acc)}
+  .wrap{max-width:980px;margin:0 auto;padding:0 20px}
+  header{padding:64px 0 40px;background:
+    radial-gradient(1200px 400px at 50% -120px,rgba(91,140,255,.25),transparent 70%);
+    border-bottom:1px solid var(--line)}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--acc);border:1px solid var(--line);background:var(--card);
+    padding:6px 12px;border-radius:999px;margin-bottom:18px}
+  h1{font-size:clamp(28px,5vw,44px);line-height:1.15;margin:0 0 14px}
+  h1 .hl{background:linear-gradient(90deg,#5b8cff,#36d399);-webkit-background-clip:text;
+    background-clip:text;color:transparent}
+  .sub{color:var(--mut);font-size:18px;max-width:720px}
+  .disclaimer{margin-top:26px;background:var(--card);border:1px solid var(--line);
+    border-left:4px solid var(--warn);border-radius:12px;padding:16px 18px;color:var(--mut);font-size:14.5px}
+  .disclaimer b{color:var(--txt)}
+  section{padding:46px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:26px;margin:0 0 6px}
+  h2 .n{color:var(--acc);font-variant-numeric:tabular-nums;margin-right:8px}
+  .lead{color:var(--mut);margin:0 0 26px;max-width:760px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:22px;margin:18px 0}
+  .card h3{margin:0 0 4px;font-size:19px;display:flex;align-items:center;gap:10px}
+  .pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.05em}
+  .pill.most{background:rgba(255,93,108,.15);color:var(--bad);border:1px solid rgba(255,93,108,.35)}
+  .pill.tech{background:rgba(91,140,255,.15);color:var(--acc);border:1px solid rgba(91,140,255,.35)}
+  .grid{display:grid;gap:10px;margin-top:14px}
+  @media(min-width:680px){.grid{grid-template-columns:1fr 1fr}}
+  .box{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .box .h{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin-bottom:4px}
+  .box.def{border-left:3px solid var(--good)}
+  .box.flag{border-left:3px solid var(--warn)}
+  .box.real{border-left:3px solid var(--acc)}
+  code,.mono{font-family:var(--mono)}
+  .calc{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin-top:8px}
+  .calc label{display:block;color:var(--mut);font-size:13px;margin:10px 0 4px}
+  .calc input,.calc select{width:100%;background:var(--card2);border:1px solid var(--line);
+    color:var(--txt);border-radius:8px;padding:10px;font-family:var(--mono)}
+  .out{margin-top:18px;background:#0e1622;border:1px solid var(--line);border-radius:10px;
+    padding:16px;font-family:var(--mono);font-size:14px;white-space:pre-wrap}
+  .out b{color:var(--good)}
+  .verdict{margin-top:14px;font-weight:700;color:var(--bad);font-size:18px}
+  ul.clean{list-style:none;padding:0;margin:0}
+  ul.clean li{padding:10px 0 10px 30px;border-bottom:1px solid var(--line);position:relative;color:var(--txt)}
+  ul.clean li:last-child{border-bottom:0}
+  ul.clean li::before{content:"✓";position:absolute;left:0;top:10px;color:var(--good);font-weight:800}
+  ul.no li::before{content:"✕";color:var(--bad)}
+  .myth{display:grid;gap:12px;margin-top:8px}
+  @media(min-width:680px){.myth{grid-template-columns:1fr 1fr}}
+  .myth .m{border-radius:12px;padding:16px;border:1px solid var(--line)}
+  .myth .m.f{background:rgba(255,93,108,.07);border-color:rgba(255,93,108,.3)}
+  .myth .m.t{background:rgba(54,211,153,.07);border-color:rgba(54,211,153,.3)}
+  .myth .m .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .myth .m.f .lbl{color:var(--bad)} .myth .m.t .lbl{color:var(--good)}
+  footer{padding:40px 0 70px;color:var(--mut);font-size:14px}
+  .kbd{font-family:var(--mono);background:var(--card2);border:1px solid var(--line);
+    border-radius:6px;padding:1px 6px;font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="tag">🛡️ Security Awareness · Defensive</span>
+    <h1>How crypto wallets <span class="hl">really</span> get stolen</h1>
+    <p class="sub">Spoiler: not by guessing seed phrases. This guide explains the attacks that
+    <em>actually</em> work — so you can recognise them and protect yourself and others.</p>
+    <div class="disclaimer">
+      <b>Read me first.</b> This is an <b>awareness</b> document. It describes how thefts happen
+      <em>at a conceptual level</em> and pairs every attack with how to defend against it. It contains
+      <b>no working exploit code, no phishing kits, and no malware</b>. Use it to stay safe — never to harm.
+      Unauthorised access to others' wallets is theft and a serious crime everywhere.
+    </div>
+  </div>
+</header>
+
+<!-- ================= MYTH ================= -->
+<section>
+  <div class="wrap">
+    <h2><span class="n">0.</span>The myth: "just generate random wallets until one has money"</h2>
+    <p class="lead">This is the single most common misconception (and the engine behind many "wallet finder"
+    scams). It does not work — and it's worth understanding <em>why</em>, because the same number that makes
+    it impossible is what keeps your own wallet safe.</p>
+
+    <div class="myth">
+      <div class="m f">
+        <div class="lbl">The pitch</div>
+        A script makes random 12-word phrases, derives the addresses, and checks balances.
+        Run it on enough servers and surely you'll hit a funded wallet eventually.
+      </div>
+      <div class="m t">
+        <div class="lbl">The reality</div>
+        A 12-word phrase has <b>128 bits of entropy</b> = 2<sup>128</sup> ≈ 3.4 × 10<sup>38</sup> possibilities.
+        You will never collide with a funded one — not with every computer on Earth, not in a trillion times
+        the age of the universe.
+      </div>
+    </div>
+
+    <div class="calc">
+      <strong>Try it yourself — the "brute-force" odds calculator</strong>
+      <label>How many wallets can you check per second?</label>
+      <input id="rate" type="text" value="1000000" />
+      <label>How many machines are you running?</label>
+      <input id="machines" type="text" value="1000000" />
+      <label>Roughly how many funded wallets exist on Earth to "hit"?</label>
+      <select id="targets">
+        <option value="1e9" selected>~1 billion (generous)</option>
+        <option value="1e8">~100 million</option>
+        <option value="1e6">~1 million</option>
+      </select>
+      <div class="out" id="out"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h3>🚩 Why this matters for awareness</h3>
+      <p style="margin:0;color:var(--mut)">Any website, app, Telegram bot, or YouTube video selling a
+      "wallet finder / seed brute-forcer / balance checker that finds lost crypto" is a <b>scam</b>. The
+      payload is usually a wallet-drainer: the tool quietly steals <em>your</em> seed phrase, or charges a
+      "withdrawal fee" for coins that don't exist. The math above is the proof — nobody can find funded
+      wallets by guessing.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= REAL VECTORS ================= -->
+<section>
+  <div class="wrap">
+    <h2><span class="n">1.</span>So how <em>does</em> it happen? The real attack surface</h2>
+    <p class="lead">Attackers never fight the 2<sup>128</sup> wall head-on. They go after the weak points
+    <em>around</em> it: broken randomness, the human, and where the key is stored. Each card below is paired
+    with the defence.</p>
+
+    <!-- weak rng -->
+    <div class="card">
+      <h3>Weak / predictable key generation <span class="pill tech">technical</span></h3>
+      <p style="margin:0;color:var(--mut)">Guessing is only impossible when the key was made with
+      <em>proper</em> randomness. Some software wasn't — and that collapses the keyspace from 2<sup>128</sup>
+      down to something small enough to search.</p>
+      <div class="grid">
+        <div class="box real"><div class="h">Real examples</div>
+          <b>Milk Sad</b> (CVE-2023-39910): a tool seeded its RNG with a 32-bit clock value → only ~4 billion
+          possible phrases → drained. <b>Randstorm</b>: millions of browser-made wallets (2011–15) with weak
+          entropy. <b>Profanity</b> vanity addresses → the $160M Wintermute hack. The "blockchain bandit"
+          swept Ethereum keys that were predictably weak.</div>
+        <div class="box def"><div class="h">How to defend</div>
+          Only generate wallets with reputable, audited, open-source wallets or a hardware device. Never use
+          random "key generator" sites. If a wallet was made by sketchy/unknown software, move funds to a
+          freshly-made one.</div>
+      </div>
+    </div>
+
+    <!-- phishing -->
+    <div class="card">
+      <h3>Phishing &amp; fake sites/apps <span class="pill most">most common</span></h3>
+      <p style="margin:0;color:var(--mut)">No code-breaking needed — the victim is convinced to type their
+      seed phrase or connect their wallet to a malicious site.</p>
+      <div class="grid">
+        <div class="box real"><div class="h">What it looks like</div>
+          A "wallet validation / migration / airdrop claim" page, a fake support agent in Discord/Telegram, a
+          cloned exchange login, a search-ad pointing to a look-alike domain, or a fake "Ledger Live" app.</div>
+        <div class="box flag"><div class="h">Warning signs</div>
+          Anything that asks for your <b>12/24 words</b> or private key. Urgency ("act now or lose funds").
+          Misspelled / look-alike domains. Unsolicited DMs offering "help".</div>
+      </div>
+      <div class="box def" style="margin-top:10px"><div class="h">How to defend</div>
+        A real wallet/exchange/support agent will <b>never</b> ask for your seed phrase — ever. Bookmark the
+        real sites and only use the bookmark. Treat every DM as hostile.</div>
+    </div>
+
+    <!-- malware -->
+    <div class="card">
+      <h3>Malware: infostealers &amp; clipboard hijackers <span class="pill tech">technical</span></h3>
+      <p style="margin:0;color:var(--mut)">Malicious software on your device hunts for keys, or silently
+      tampers with what you copy and paste.</p>
+      <div class="grid">
+        <div class="box real"><div class="h">How it operates</div>
+          <b>Infostealers</b> (e.g. the RedLine/Lumma families) scan for <code>seed.txt</code>, wallet files,
+          and browser-extension wallet data. <b>Clipboard hijackers</b> swap the destination address when you
+          paste, so funds go to the attacker. Often delivered via cracked software, fake game/AI tools, or
+          malicious browser extensions / npm packages.</div>
+        <div class="box def"><div class="h">How to defend</div>
+          Don't pirate software. Keep a clean device for crypto. Use a hardware wallet so the key never
+          touches the PC. <b>Always verify the on-screen address on the hardware device</b> before approving.</div>
+      </div>
+    </div>
+
+    <!-- storage -->
+    <div class="card">
+      <h3>Insecure storage of the seed phrase</h3>
+      <p style="margin:0;color:var(--mut)">The key leaks from wherever it's carelessly kept.</p>
+      <div class="grid">
+        <div class="box real"><div class="h">Common leaks</div>
+          A <b>photo/screenshot</b> of the seed auto-synced to Google Photos/iCloud → cloud account later
+          breached. Seed saved in a note app, email draft, password manager note, or a plain text file.</div>
+        <div class="box def"><div class="h">How to defend</div>
+          Write the seed on <b>paper or steel</b>, kept offline. Never photograph it, never type it into
+          anything connected to the internet, never store it in cloud/notes/chat.</div>
+      </div>
+    </div>
+
+    <!-- signing -->
+    <div class="card">
+      <h3>Malicious transaction signing &amp; token approvals</h3>
+      <p style="margin:0;color:var(--mut)">Your key is never stolen — instead you're tricked into
+      <em>signing</em> something that hands over your tokens.</p>
+      <div class="grid">
+        <div class="box real"><div class="h">How it works</div>
+          A dApp asks you to "approve" a token spend or sign a message; the approval is unlimited and lets a
+          drainer contract empty that token whenever it likes. Common on fake mint / airdrop sites.</div>
+        <div class="box def"><div class="h">How to defend</div>
+          Read what you're signing. Use a wallet that simulates transactions. Periodically review &amp;
+          revoke token approvals (e.g. revoke.cash). Use a fresh "burner" wallet for risky mints.</div>
+      </div>
+    </div>
+
+    <!-- custodial -->
+    <div class="card">
+      <h3>Server / exchange breaches &amp; "$5 wrench"</h3>
+      <div class="grid">
+        <div class="box real"><div class="h">Reality</div>
+          Keys held on a hacked server or exchange get taken with the server. And sometimes there's no hacking
+          at all — coercion, theft of a written seed, or an insider.</div>
+        <div class="box def"><div class="h">How to defend</div>
+          "Not your keys, not your coins" — self-custody what you can. Hardware wallet + optional passphrase.
+          Don't advertise holdings. Consider multisig for large amounts.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TAKEAWAY ================= -->
+<section>
+  <div class="wrap">
+    <h2><span class="n">2.</span>The one-line mental model</h2>
+    <div class="card" style="border-left:4px solid var(--good)">
+      <p style="margin:0;font-size:18px">Attackers don't <b>break</b> the cryptography. They find keys that
+      were <b>weakly generated</b>, <b>tricked out of people</b>, or <b>stolen from where they're stored</b>.</p>
+    </div>
+    <p class="lead" style="margin-top:18px">That's why "where did your randomness come from, and who can
+    reach your seed?" are the only questions that matter — not "how big is the number".</p>
+  </div>
+</section>
+
+<!-- ================= CHECKLIST ================= -->
+<section>
+  <div class="wrap">
+    <h2><span class="n">3.</span>Your personal defence checklist</h2>
+    <div class="grid">
+      <div>
+        <h3 style="color:var(--good)">✓ Do</h3>
+        <ul class="clean">
+          <li>Generate wallets only with reputable, audited wallets or a hardware device</li>
+          <li>Store the seed offline on paper/steel</li>
+          <li>Verify every receiving address on the hardware screen</li>
+          <li>Bookmark real sites; assume DMs are hostile</li>
+          <li>Review &amp; revoke token approvals regularly</li>
+          <li>Keep a separate clean device / burner wallet for risky activity</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:var(--bad)">✕ Never</h3>
+        <ul class="clean no">
+          <li>Type your 12/24 words into any website, app, or chat</li>
+          <li>Photograph or screenshot your seed phrase</li>
+          <li>Store the seed in cloud notes, email, or a text file</li>
+          <li>Trust "wallet finder / lost-crypto recovery" tools</li>
+          <li>Approve a transaction you don't understand</li>
+          <li>Reuse a wallet that was made by unknown software</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Built as a defensive awareness reference. The "brute-force a wallet" approach is mathematically
+    impossible (see §0) — the real risks are weak randomness, phishing, malware, and careless storage. Share
+    this to help people protect themselves.</p>
+    <p style="color:#5b6677">⚖️ Accessing wallets you don't own is theft. This page exists to prevent that,
+    not enable it.</p>
+  </div>
+</footer>
+
+<script>
+  // Educational odds calculator — reinforces why brute-force is impossible.
+  const KEYSPACE = Math.pow(2, 128);          // ~3.4e38 possible 12-word phrases
+  const UNIVERSE_YEARS = 1.38e10;             // age of the universe in years
+  const SECONDS_PER_YEAR = 31557600;
+
+  const fmt = (x) => {
+    if (!isFinite(x)) return "∞";
+    if (x === 0) return "0";
+    const e = Math.floor(Math.log10(x));
+    if (e < 6 && e > -4) return x.toLocaleString(undefined,{maximumFractionDigits:2});
+    const m = x / Math.pow(10, e);
+    return m.toFixed(2) + " × 10^" + e;
+  };
+
+  function recompute(){
+    const rate = Math.max(0, parseFloat(document.getElementById('rate').value) || 0);
+    const machines = Math.max(0, parseFloat(document.getElementById('machines').value) || 0);
+    const targets = parseFloat(document.getElementById('targets').value);
+
+    const perSec = rate * machines;
+    const checksPerYear = perSec * SECONDS_PER_YEAR;
+
+    // Expected checks to land on ANY funded wallet ≈ keyspace / number_of_targets
+    const expectedChecks = KEYSPACE / targets;
+    const yearsNeeded = checksPerYear > 0 ? expectedChecks / checksPerYear : Infinity;
+    const universes = yearsNeeded / UNIVERSE_YEARS;
+
+    document.getElementById('out').innerHTML =
+      "Combined speed     : " + fmt(perSec) + " checks/second\n" +
+      "Checks per year    : " + fmt(checksPerYear) + "\n" +
+      "Keyspace (2^128)   : " + fmt(KEYSPACE) + " phrases\n" +
+      "Expected tries/hit : " + fmt(expectedChecks) + "\n" +
+      "──────────────────\n" +
+      "Years for one hit  : " + fmt(yearsNeeded) + " years\n" +
+      "= ages of universe : " + fmt(universes);
+
+    let v;
+    if (universes > 1e6) v = "Verdict: effectively IMPOSSIBLE — " + fmt(universes) + "× the age of the universe.";
+    else if (universes > 1) v = "Verdict: still impossible — longer than the universe has existed.";
+    else v = "Verdict: only 'feasible' here because the inputs are unrealistic — real keyspaces don't shrink.";
+    document.getElementById('verdict').textContent = v;
+  }
+  ['rate','machines','targets'].forEach(id =>
+    document.getElementById(id).addEventListener('input', recompute));
+  recompute();
+</script>
+</body>
+</html>

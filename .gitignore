@@ -9,3 +9,16 @@ server/*.pem
 server/*.key
 server/*.pub
 server/id_rsa
+Find_my_wallet_server_key
+mian server
+
+# Any private key / cert anywhere in the repo (never commit)
+*.key
+*.pem
+*.ppk
+id_rsa
+id_ed25519
+
+# Local copies pulled down from the server
+output-server-*.txt
+output-*.txt
